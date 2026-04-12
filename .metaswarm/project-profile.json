@@ -1,0 +1,45 @@
+{
+  "projectName": "C--Users-Charlie",
+  "projectType": "agent-orchestration-system",
+  "description": "MiniMax agent orchestration system. Claude Opus Max orchestrates, MiniMax agents execute. Self-improving via learnings loop.",
+  "language": "markdown",
+  "framework": "metaswarm-minimax-hybrid",
+  "testRunner": "none",
+  "coverageThreshold": 0,
+  "externalTools": {
+    "minimax": true,
+    "metaswarm": true,
+    "github": false,
+    "codex": false
+  },
+  "metaswarmVersion": "1.0.0",
+  "setupDate": "2026-04-13",
+  "orchestratorModel": "claude-opus-4-7-20251120",
+  "executionModel": "minimax-2.7",
+  "agents": {
+    "active": ["code-fix-agent", "code-review-agent", "learning-agent", "token-budget-agent", "git-commit-agent", "agent-stockpile-manager"],
+    "candidate": ["session-recovery-agent", "code-fix-agent-v2"],
+    "retired": []
+  },
+  "skills": {
+    "core": ["minimax-workflow-optimizer", "minimax-dev-workflow", "minimax-delegation", "skill-builder"],
+    "memory": ["_learnings.md", "_token_log.md", "_stockpile.md"]
+  },
+  "rules": {
+    "maxSimultaneousAgents": 5,
+    "preReadOnce": true,
+    "oneAgentPerFile": true,
+    "postTaskLoop": true
+  },
+  "tokenBudget": {
+    "dailyLimit": 15000,
+    "windowHours": 5,
+    "warnThresholds": [50, 75, 90]
+  },
+  "sessionRecovery": {
+    "enabled": true,
+    "logFormat": "jsonl",
+    "logDir": ".claude/projects/C--Users-Charlie",
+    "autoBackup": true
+  }
+}
