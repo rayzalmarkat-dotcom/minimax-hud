@@ -1,0 +1,73 @@
+{
+  "last_updated": "2026-04-13T00:00:00Z",
+  "agents": [
+    {
+      "agent_id": "code-fix-agent",
+      "display_name": "Code Fix Agent",
+      "role": "Fix all issues in one file",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    },
+    {
+      "agent_id": "code-review-agent",
+      "display_name": "Code Review Agent",
+      "role": "Rubric-scored code review (CRITICAL to LOW)",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    },
+    {
+      "agent_id": "learning-agent",
+      "display_name": "Learning Agent",
+      "role": "Session retrospectives to _learnings.md",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    },
+    {
+      "agent_id": "token-budget-agent",
+      "display_name": "Token Budget Agent",
+      "role": "Budget tracking to _token_log.md",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    },
+    {
+      "agent_id": "git-commit-agent",
+      "display_name": "Git Commit Agent",
+      "role": "Conventional commits and push to GitHub",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    },
+    {
+      "agent_id": "agent-stockpile-manager",
+      "display_name": "Agent Stockpile Manager",
+      "role": "Benchmark and optimize stockpile to _stockpile.md",
+      "model_type": "Minimax",
+      "lifecycle_state": "core",
+      "sessions": 0,
+      "calls": 0,
+      "token_usage": 0
+    }
+  ],
+  "global_metrics": {
+    "agents_created_today": 0,
+    "agents_retired_today": 0,
+    "active_spawned_agents": 0,
+    "spawn_success_rate": 1.0,
+    "redundancy_rate": 0.0,
+    "low_value_agent_rate": 0.0
+  }
+}

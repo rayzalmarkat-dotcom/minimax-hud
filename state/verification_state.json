@@ -1,0 +1,10 @@
+{
+  "last_updated": "2026-04-13T00:00:00Z",
+  "verification_coverage": 0.0,
+  "error_catch_rate": 0.0,
+  "hallucination_catch_rate": 0.0,
+  "contradiction_catch_rate": 0.0,
+  "adversarial_review_count": 0,
+  "overconfidence_incidents": 0,
+  "underconfidence_incidents": 0
+}

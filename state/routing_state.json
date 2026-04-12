@@ -1,0 +1,11 @@
+{
+  "last_updated": "2026-04-13T00:00:00Z",
+  "claude_calls": 0,
+  "minimax_calls": 0,
+  "escalation_count": 0,
+  "bad_routing_incidents": 0,
+  "claude_overuse": false,
+  "arbitration_count": 0,
+  "unresolved_conflicts": 0,
+  "workload_split_pct": {"claude": 0.0, "minimax": 0.0}
+}
