@@ -279,13 +279,69 @@ def _verify_python_files(paths: list[str]) -> tuple[bool, list[str]]:
     return True, []
 
 
+def _discover_test_targets() -> tuple[bool, list[str]]:
+    tests_dir = REPO_DIR / "tests"
+    if not tests_dir.exists():
+        return False, []
+
+    discovered: list[str] = []
+    for path in tests_dir.rglob("test*.py"):
+        discovered.append(str(path.relative_to(REPO_DIR)))
+    return bool(discovered), discovered
+
+
+def _run_project_tests() -> tuple[bool, str, str]:
+    tests_found, discovered = _discover_test_targets()
+    if not tests_found:
+        return True, "no tests discovered", "none"
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test*.py"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=300,
+            cwd=str(REPO_DIR),
+            check=False,
+        )
+    except Exception as exc:
+        return False, str(exc), "unittest"
+
+    output = (result.stdout + "\n" + result.stderr).strip()
+    if result.returncode != 0:
+        return False, output or "unittest discover failed", "unittest"
+    return True, output or f"passed: {len(discovered)} test file(s)", "unittest"
+
+
 def _build_local_verification(
     cycle: int,
     files: list[str],
     result: dict[str, Any],
 ) -> dict[str, Any]:
     changed_files = _git_changed_files()
+    diff_check_ok = True
+    diff_check_errors: list[str] = []
+    if changed_files:
+        try:
+            diff_result = subprocess.run(
+                ["git", "-C", str(REPO_DIR), "diff", "--check", "--", *changed_files],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=120,
+                check=False,
+            )
+            diff_output = (diff_result.stdout + "\n" + diff_result.stderr).strip()
+            if diff_result.returncode != 0:
+                diff_check_ok = False
+                diff_check_errors = [diff_output or "git diff --check failed"]
+        except Exception as exc:
+            diff_check_ok = False
+            diff_check_errors = [str(exc)]
+
     python_compile_ok, python_compile_errors = _verify_python_files(changed_files)
+    tests_ok, tests_output, tests_mode = _run_project_tests()
     parseable_result = (
         isinstance(result, dict)
         and isinstance(result.get("cycle"), int)
@@ -299,22 +355,34 @@ def _build_local_verification(
     issues_found = int(result.get("issues_found", 0) or 0)
     issues_fixed = int(result.get("issues_fixed", 0) or 0)
 
+    tests_discovered = tests_mode != "none"
     checks = {
         "parseable_result": 1.0 if parseable_result else 0.0,
         "required_fields": 1.0 if required_fields_present else 0.0,
         "changed_files": 1.0 if changed_files_detected else 0.0,
+        "diff_check_ok": 1.0 if diff_check_ok else 0.0,
         "python_compile_ok": 1.0 if python_compile_ok else 0.0,
-        "issues_reported_consistent": (
-            1.0 if issues_found >= 0 and issues_fixed >= 0 else 0.0
-        ),
+        "tests_ok": 1.0 if tests_ok else (0.0 if tests_discovered else 1.0),
     }
     total_checks = len(checks)
     coverage = sum(checks.values()) / total_checks if total_checks else 0.0
-    verified = parseable_result and python_compile_ok and changed_files_detected
-    benchmark_confirmed = verified and coverage >= 0.6
+    verified = (
+        parseable_result
+        and required_fields_present
+        and changed_files_detected
+        and diff_check_ok
+        and python_compile_ok
+        and (tests_ok if tests_discovered else True)
+    )
+    benchmark_confirmed = verified and coverage >= 0.75
     reported_score = float(result.get("score", 0.0) or 0.0)
     score = round(
-        min(1.0, (0.75 * coverage) + (0.25 * reported_score if verified else 0.0)),
+        min(
+            1.0,
+            (0.6 * coverage)
+            + (0.25 * reported_score if verified else 0.0)
+            + (0.15 if tests_ok and tests_discovered else 0.0),
+        ),
         2,
     )
 
@@ -322,8 +390,14 @@ def _build_local_verification(
         "cycle": cycle,
         "files_requested": files,
         "changed_files": changed_files,
+        "diff_check_ok": diff_check_ok,
+        "diff_check_errors": diff_check_errors,
         "python_compile_ok": python_compile_ok,
         "python_compile_errors": python_compile_errors,
+        "tests_discovered": tests_discovered,
+        "tests_ok": tests_ok,
+        "tests_output": tests_output,
+        "verification_mode": "unittest" if tests_discovered else "static",
         "parseable_result": parseable_result,
         "required_fields_present": required_fields_present,
         "coverage": round(coverage, 2),

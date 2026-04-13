@@ -380,6 +380,8 @@ def _build_top_zone(state: dict) -> Panel:
     benchmark_ratio: float = bench.get(
         "benchmark_confirmed_vs_speculative_ratio", 0.0
     )
+    benchmark_evidence: dict = bench.get("benchmark_evidence", {})
+    verification_mode: str = benchmark_evidence.get("verification_mode", "static")
 
     conf_color = CONFidence_COLORS.get(confidence, "dim")
     delta_str = f"+{delta:.2f}" if delta >= 0 else f"{delta:.2f}"
@@ -422,7 +424,8 @@ def _build_top_zone(state: dict) -> Panel:
         Text(
             f"Verified: {verified_runs}    "
             f"Speculative: {speculative_runs}    "
-            f"Ratio: {benchmark_ratio * 100:.0f}%",
+            f"Ratio: {benchmark_ratio * 100:.0f}%    "
+            f"Mode: {verification_mode}",
             style="dim",
         )
     )
