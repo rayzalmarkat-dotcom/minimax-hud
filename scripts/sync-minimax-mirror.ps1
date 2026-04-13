@@ -6,6 +6,7 @@ $liveRoot = Join-Path $HOME '.claude'
 
 $copyMap = @(
     'CLAUDE.md',
+    '.gitignore',
     'settings.json',
     'hud.py',
     'state_engine.py',
