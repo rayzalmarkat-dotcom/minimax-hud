@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "LOCK=\"$HOME/.claude/state/hud_running.lock\"; if [ -f \"$LOCK\" ]; then PID=$(cat \"$LOCK\" 2>/dev/null); if [ -n \"$PID\" ] && kill -0 \"$PID\" 2>/dev/null; then exit 0; fi; fi; start \"\" python \"$HOME/.claude/hud.py\"",
+            "command": "LOCK=\"$HOME/.claude/state/hud_running.lock\"; if [ -f \"$LOCK\" ]; then PID=$(cat \"$LOCK\" 2>/dev/null); if [ -n \"$PID\" ] && kill -0 \"$PID\" 2>/dev/null; then exit 0; fi; fi; pythonw \"$HOME/.claude/hud.py\" >/dev/null 2>&1 &",
             "shell": "bash",
             "async": false,
             "statusMessage": "Checking HUD status..."
