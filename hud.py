@@ -96,9 +96,6 @@ def _read_token_log() -> dict:
 # which cannot encode Unicode box-drawing / emoji characters used by the HUD)
 # ---------------------------------------------------------------------------
 
-import sys as _sys
-import os as _os
-import tempfile as _tempfile
 from pathlib import Path as _Path
 
 # ---------------------------------------------------------------------------
