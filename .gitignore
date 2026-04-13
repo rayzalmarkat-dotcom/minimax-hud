@@ -1,0 +1,7 @@
+# Runtime/session artifacts
+/.coverage-thresholds.json
+/__pycache__/
+/.claude/commands/
+/[0-9a-f-]*.jsonl
+/*/subagents/
+/*/tool-results/
