@@ -34,10 +34,29 @@ sys.path.insert(0, str(Path.home()))
 from state_engine import get_all_state  # noqa: E402
 
 # ---------------------------------------------------------------------------
+# Bootstrap stdout to UTF-8 (Windows CP console defaults to cp1252,
+# which cannot encode Unicode box-drawing / emoji characters used by the HUD)
+# ---------------------------------------------------------------------------
+
+import sys as _sys
+
+if hasattr(_sys.stdout, "reconfigure"):
+    try:
+        _sys.stdout.reconfigure(encoding="utf-8")
+    except (
+        Exception
+    ):  # pragma: no cover — reconfigure can fail on some file-like objects
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Console singleton
 # ---------------------------------------------------------------------------
 
-console = Console()
+console = Console(
+    force_terminal=True,
+    legacy_windows=False,  # use ANSI/VT sequences, not Win32 Console API (cp1252)
+)
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -602,34 +621,31 @@ def build_renderable(state: dict) -> RichGroup:
 
 
 # ---------------------------------------------------------------------------
-# Generator-based render loop
+# get_renderable callable — drives Live's auto-refresh thread
 # ---------------------------------------------------------------------------
 
 
-def hud_generator():
+def hud_getter():
     """
-    Infinite generator that yields a RichGroup per frame.
+    Called by rich.Live's background refresh thread each time it polls.
 
-    Reads all 8 JSON files via get_all_state() exactly once per frame.
-    Yields ONE RichGroup per frame — never calls console.clear().
+    Returns a fresh RichGroup per call. Never blocks — reads state and returns
+    immediately so the refresh thread is never starved.
     """
-    while True:
-        state = get_all_state()
-        # Map filename keys (from state_engine) to logical keys (expected by render functions)
-        _FILE_TO_LOGICAL: dict[str, str] = {
-            "agent_registry.json": "agent_registry",
-            "benchmark_state.json": "benchmark_state",
-            "learning_pipeline.json": "learning_pipeline",
-            "memory_state.json": "memory_state",
-            "system_health.json": "system_health",
-            "changelog.json": "changelog",
-            "routing_state.json": "routing_state",
-            "verification_state.json": "verification_state",
-        }
-        state = {_FILE_TO_LOGICAL.get(k, k): v for k, v in state.items()}
-        yield build_renderable(state)
-        # Brief pause between frames to cap refresh rate
-        time.sleep(0.1)
+    state = get_all_state()
+    # Map filename keys (from state_engine) to logical keys (expected by render functions)
+    _FILE_TO_LOGICAL: dict[str, str] = {
+        "agent_registry.json": "agent_registry",
+        "benchmark_state.json": "benchmark_state",
+        "learning_pipeline.json": "learning_pipeline",
+        "memory_state.json": "memory_state",
+        "system_health.json": "system_health",
+        "changelog.json": "changelog",
+        "routing_state.json": "routing_state",
+        "verification_state.json": "verification_state",
+    }
+    state = {_FILE_TO_LOGICAL.get(k, k): v for k, v in state.items()}
+    return build_renderable(state)
 
 
 # ---------------------------------------------------------------------------
@@ -644,14 +660,16 @@ def main() -> None:
     time.sleep(1)
     try:
         with Live(
-            hud_generator(),
+            get_renderable=hud_getter,
             console=console,
             screen=False,  # in-place ANSI updates — no new terminal
             refresh_per_second=0.2,  # 5-second refresh cadence
             transient=False,  # don't clear on exit — let last frame linger
         ) as live:
-            for _ in hud_generator():
-                pass  # Live drives the generator; we just keep it alive
+            # Live drives the refresh thread automatically. Keep the main
+            # thread alive until the user sends KeyboardInterrupt (Ctrl+C).
+            while live.is_started:
+                time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
