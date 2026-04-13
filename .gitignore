@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 *.jsonl
+*.meta.json
+93255f52-*
+ea6306a8-*.jsonl
+f7860bd0-*.jsonl
