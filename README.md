@@ -1,231 +1,290 @@
-# MiniMax Agent Orchestration System
+# MiniMax HUD
 
-**Opus Max** (claude-opus-4-7-20251120) orchestrates. **MiniMax-M2.7** workers execute.
-Every session makes the next one smarter.
+MiniMax-first orchestration for Claude Code, with Opus as controller, MiniMax workers as the default execution path, a real post-task learning loop, and a live HUD that reflects actual system activity.
 
----
-
-## What This Is
-
-A self-improving agent system where:
-- A strong orchestrator (Opus Max) holds full context — stockpile, learnings, routing policy, agent specs, project state — and makes all decisions
-- Fast, cheap workers (MiniMax M2.7) do the execution: code, fixes, reviews, research
-- The system learns from every session and improves automatically
-- A live HUD dashboard tracks everything in real time
-- A background daemon runs improvement cycles every 30 minutes, even when you're not using Claude Code
+This repo mirrors the active `C:\Users\Charlie\.claude` system and is now cleaned of runtime/session artifacts. GitHub tracks the system, not the local noise.
 
 ---
 
-## The Core Loop
+## Current Operating Model
 
+```text
+User input
+  -> Opus controller
+  -> internal MiniMax routing
+  -> MiniMax workers do execution by default
+  -> post-task loop logs, learns, updates stockpile/state
+  -> HUD reflects real routing + learning activity
 ```
-Task arrives
-    ↓
-[1] Opus reads learnings + stockpile → applies past lessons
-    ↓
-[2] Opus checks request budget → warns if near limit
-    ↓
-[3] Opus pre-reads all files ONCE → no redundant I/O
-    ↓
-[4] MiniMax workers dispatched (1 per file, max 5 simultaneous)
-    ↓
-[5] Workers execute → py_compile verifies → state updated
-    ↓
-[6] Post-task loop: log session → extract learnings → benchmark agents
-    ↓
-Next task → smarter system
+
+Primary path:
+1. MiniMax delegation system
+2. Internal skills
+3. External/plugin/ECC agents only as fallback
+
+This is the main normalization that was completed. The system is no longer documented or wired as ECC-first.
+
+---
+
+## What Was Corrected
+
+### 1. Entry point routing was normalized
+
+`settings.json` now injects a MiniMax-first routing policy at `UserPromptSubmit`:
+- Opus follows `CLAUDE.md`
+- Internal MiniMax skills are preferred first
+- Worker execution is explicitly pinned to `MiniMax-M2.7` where supported
+- External/plugin/ECC routes are fallback-only
+- Workers report back to Opus
+
+### 2. The post-task loop is real now
+
+The `Stop` hook runs:
+
+```bash
+python "$HOME/.claude/scripts/hooks/minimax-post-task-loop.py"
 ```
+
+After every task it:
+1. logs request activity
+2. extracts a learning
+3. updates stockpile/session counts
+4. updates state JSON
+5. emits events so the HUD reflects the run
+
+### 3. MiniMax workflows are real skills
+
+The system now includes proper skill folders:
+- `skills/minimax-delegation/SKILL.md`
+- `skills/minimax-dev-workflow/SKILL.md`
+- `skills/minimax-workflow-optimizer/SKILL.md`
+
+Legacy markdown files remain only as compatibility shims where needed.
+
+### 4. Controller identity is unified
+
+The system now documents one controller:
+- Opus is the sole controller
+- MiniMax is the default execution layer
+- Sonnet is not the orchestrator
+
+### 5. Budget language is normalized
+
+Canonical budget unit:
+- `15,000 model requests / 5 hours`
+
+Requests are the canonical planning unit.
+Token estimates are secondary diagnostics only.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    OPUS MAX                          │
-│  claude-opus-4-7-20251120                          │
-│  Holds full context simultaneously                  │
-│  Makes all routing + orchestration decisions         │
-└──────────────────────┬──────────────────────────────┘
-                       │ dispatches
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│              MiniMax M2.7 Workers                   │
-│  specialist agents execute code, fixes, reviews    │
-│  model: MiniMax-M2.7 (pinned explicitly)          │
-└──────────────────────┬──────────────────────────────┘
-                       │ write state
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│  state_engine.py  →  JSON files in ~/.claude/state/│
-│  events.py        →  event_log.jsonl               │
-└──────────────────────┬──────────────────────────────┘
-                       │ reads
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│                   hud.py                            │
-│  Live terminal dashboard — refreshes every 5s      │
-│  Shows: benchmark score, agent registry, routing,  │
-│  memory, verification, learning pipeline, health    │
-└─────────────────────────────────────────────────────┘
+```text
+Opus Max
+  - holds context
+  - reads learnings, stockpile, state, routing rules
+  - chooses skills and worker layout
+  - synthesizes final output
 
-┌─────────────────────────────────────────────────────┐
-│            self_improve_daemon.py                   │
-│  Background process (pythonw, PID 36240)            │
-│  Runs every 30 minutes, independent of Claude Code │
-│  Audits files round-robin, fixes CRITICAL/HIGH     │
-│  Updates state → HUD stays live                    │
-└─────────────────────────────────────────────────────┘
+MiniMax-M2.7 workers
+  - default execution engine
+  - code changes
+  - reviews
+  - bounded research
+  - delegated subtasks
+
+State + learning loop
+  - _token_log.md
+  - _learnings.md
+  - _stockpile.md
+  - state/*.json
+  - event stream
+
+HUD
+  - reads state
+  - shows routing, learning, health, request budget
 ```
+
+Key runtime files:
+- `CLAUDE.md`
+- `settings.json`
+- `hud.py`
+- `scripts/hooks/minimax-post-task-loop.py`
+- `skills/_learnings.md`
+- `skills/_token_log.md`
+- `agents/_stockpile.md`
+- `state/routing_state.json`
+- `state/learning_pipeline.json`
+- `state/system_health.json`
 
 ---
 
-## Specialist Agents (`agents/`)
+## Live State Snapshot
 
-| Agent | Role |
-|-------|------|
-| `code-fix-agent` | Fixes all issues in one file (grouped, not one agent per issue) |
-| `code-review-agent` | Rubric-scored review: CRITICAL → HIGH → MEDIUM → LOW |
-| `learning-agent` | Session retrospectives → `_learnings.md` |
-| `token-budget-agent` | Tracks request usage, warns at 50/75/90% of 15,000/5h |
-| `git-commit-agent` | Conventional commits + push to GitHub |
-| `agent-stockpile-manager` | Benchmarks agents, retires old ones, auto-creates new ones |
-| `state-producer-agent` | Emits HUD state events after every session |
+Current mirrored state at the time of this update:
+- Routing split: `MiniMax 66.7%`, `Claude 33.3%`
+- Learning pipeline: `generated 1`, `validated 1`
+- System health: `benchmark-confirmed`
+- Prompt health: `stable`
+- Routing confidence: `1.0`
+- Budget usage tracked in state: `1%`
+
+These numbers come from the mirrored `state/*.json` files and should be treated as a snapshot, not a permanent constant.
 
 ---
 
-## Skills (`skills/`)
+## Agent Policy
+
+### Core rules
+
+1. Opus orchestrates. MiniMax executes.
+2. Pre-read efficiently. Avoid redundant file reads when Opus can provide the needed context.
+3. Prefer internal MiniMax skills before external/plugin agents.
+4. Log and learn after every task.
+5. Verify changes with real evidence before claiming success.
+
+### Updated parallelism policy
+
+Older versions of this system said:
+- never 2 agents on the same file
+- keep agent count very low
+
+That is no longer the recommended rule.
+
+New policy:
+- use as many MiniMax workers as materially improve throughput
+- parallelize aggressively when the task benefits from it
+- multiple agents may contribute to the same file if the work is decomposed clearly
+- Opus must still control ownership, merge order, and final integration
+
+Good same-file parallel patterns:
+- one agent audits, one agent patches, one agent verifies
+- one agent handles logic, one agent handles tests, one agent handles docs
+- one agent drafts a refactor plan while another prepares a narrow code change
+
+Bad parallel patterns:
+- duplicate agents doing the same edit blindly
+- conflicting writes with no integration plan
+- workers re-reading and rediscovering the same context instead of using Opus-prepared inputs
+
+The limiting factor is not agent count by itself. The limiting factors are overlap, merge friction, and wasted context.
+
+---
+
+## Skills
 
 | Skill | Purpose |
-|-------|---------|
-| `minimax-workflow-optimizer` | The self-improving loop meta-skill |
-| `minimax-dev-workflow` | How to dispatch MiniMax workers (pre-read-once, group by file) |
-| `minimax-delegation` | How to spawn MiniMax workers |
-| `skill-builder` | How to create new skills |
-| `_learnings.md` | Growing knowledge base — mistakes + techniques from every session |
-| `_token_log.md` | Request burn tracking per session |
-| `_stockpile.md` | Active agents inventory with quality ratings |
-
----
-
-## Rules (`rules/`)
-
-Per-language coding standards, security guidelines, testing requirements, patterns, and hooks. Currently covers: Python, TypeScript, Go, Kotlin, Swift, C++, PHP, Perl.
-
----
-
-## Capabilities
-
-### Self-Improvement
-- Every session logged → learnings extracted → applied to next session
-- Agent quality tracked → weak agents retired, strong ones promoted
-- Stockpile auto-creates new specialist agents when recurring tasks emerge without one
-- 11 sessions of learnings already captured and applied
-
-### Live HUD (`hud.py`)
-- Benchmark score + rolling average + delta
-- Agent registry (top 8 by contribution score, flagged for noise/regression)
-- Claude vs MiniMax workload split bar
-- Memory retrieval stats (hit rate, usefulness, noise)
-- Verification coverage (error catch, hallucination catch)
-- Learning pipeline: GEN → VAL → PRO → REJ → DIS → PEN
-- System health overall state
-- Changelog (last 4 entries)
-- Token budget bar
-- Windows-safe: PID lock prevents multi-terminal infinite spawn loops
-
-### Background Daemon (`self_improve_daemon.py`)
-- Runs as `pythonw` background process
-- Every 30 minutes: audits 3 files round-robin, fixes CRITICAL/HIGH issues
-- Calls state engine → HUD updates live
-- Stops gracefully when `~/.claude/state/SELF_IMPROVE_STOP` exists
-- Self-improves the system while you sleep
-
-### Token/Request Budget
-- MiniMax M2.7 10x Starter: **15,000 model requests / 5 hours**
-- Warnings at 50% (7,500), 75% (11,250), 90% (13,500)
-- HUD strip shows sessions logged + efficiency token estimates
-- Daemon checks budget before each cycle
-
-### Post-Task Hook (auto-runs after every response)
-`~/.claude/scripts/hooks/minimax-post-task-loop.py`:
-1. Logs MiniMax request activity → `_token_log.md`
-2. Extracts routing/loop learning → `_learnings.md`
-3. Updates agent session counts → `_stockpile.md`
-4. Fires state events → HUD reflects live activity
-
----
-
-## What We're Building Toward
-
-### Phase 1 — Done ✅
-- [x] Opus orchestrates, MiniMax executes
-- [x] Pre-read-once + group-by-file dispatch (eliminates 80%+ token waste)
-- [x] Live HUD with all system state
-- [x] Background self-improvement daemon
-- [x] 6 specialist agents
-- [x] Learnings loop (11 sessions captured)
-- [x] Stockpile with quality ratings
-- [x] Post-task hook for automatic state updates
-
-### Phase 2 — In Progress 🔨
-- [ ] Stockpile auto-creation: daemon detects recurring tasks without agents → drafts new agent specs → proposes to add to stockpile
-- [ ] Benchmark scoring: quantitative quality scores per agent per session
-- [ ] Routing intelligence: learned Claude vs MiniMax split based on task type
-- [ ] Memory signal: track what gets retrieved from memory, flag low-usefulness entries for pruning
-
-### Phase 3 — Planned 📋
-- [ ] Multi-project support: share agents/learnings across repos
-- [ ] Agent communication: MiniMax workers hand off context to each other mid-task
-- [ ] Self-authored agents: system analyses its own bottlenecks → writes new agents without human prompting
-- [ ] Distributed daemon: run self-improvement on multiple machines, merge learnings
-
-### Anti-Patterns Never Repeated
-1. Never spawn >5 simultaneous agents
-2. Never 2 agents on the same file
-3. Never let agents re-read files already read
-4. Never skip learnings extraction after session
-5. Never skip py_compile after agent edits
-6. Never propose fix before root cause
-7. Never claim "fixed" without fresh verification
-8. Never trust agent success without evidence
-
----
-
-## Key Files
-
-| Path | Purpose |
 |------|---------|
-| `~/.claude/hud.py` | Live HUD dashboard |
-| `~/.claude/state_engine.py` | JSON state + health computation |
-| `~/.claude/events.py` | Thread-safe event log |
-| `~/.claude/self_improve_daemon.py` | Background self-improvement loop |
-| `~/.claude/settings.json` | SessionStart hook, permissions |
-| `~/.claude/CLAUDE.md` | Orchestration instructions |
-| `~/.claude/skills/_learnings.md` | Session learnings |
-| `~/.claude/agents/_stockpile.md` | Agent inventory |
-| `~/.claude/state/` | JSON state files (HUD reads here) |
-| `~/.claude/state/hud_running.lock` | PID lock for single HUD instance |
+| `minimax-delegation` | Default MiniMax-first delegation path |
+| `minimax-dev-workflow` | Non-trivial development workflow and execution orchestration |
+| `minimax-workflow-optimizer` | Self-improving workflow tuning and budget/routing optimization |
+| `skill-builder` | Skill authoring and extension |
+| `_learnings.md` | Persistent system learnings |
+| `_token_log.md` | Request tracking and session logging |
 
 ---
 
-## Setup
+## Agents
 
-The system is configured and running. On a fresh machine:
-1. Clone `https://github.com/rayzalmarkat-dotcom/minimax-hud`
-2. Run `python hud.py` to start the live dashboard
-3. Start the daemon: `pythonw self_improve_daemon.py` (Windows GUI mode)
-4. Claude Code will auto-launch HUD on every terminal session via SessionStart hook
+| Agent | Role |
+|------|------|
+| `code-fix-agent` | Fixes implementation issues |
+| `code-review-agent` | Performs severity-based review |
+| `learning-agent` | Extracts learnings after tasks |
+| `token-budget-agent` | Tracks request budget consumption |
+| `git-commit-agent` | Commits and pushes changes |
+| `agent-stockpile-manager` | Maintains stockpile quality and coverage |
+| `state-producer-agent` | Produces state/HUD-facing updates |
 
 ---
 
-## Token Efficiency
+## HUD
 
-| Metric | Before (bad) | After (good) |
-|--------|-------------|--------------|
-| Agents per task | 18+ | 2-5 |
-| File re-reads | Many | Zero |
-| Token waste | ~82% | ~10% |
-| Post-task learning | None | Always |
+`hud.py` now reflects the normalized system instead of the older token-confused model.
 
-The pre-read-once + group-by-file discipline alone cuts token burn by ~80%.
+It is intended to surface:
+- request budget status
+- routing split
+- agent activity
+- learning pipeline state
+- system health
+- benchmark/readiness signals
+
+The HUD is only as good as the post-task loop and state files. That loop is now an actual hook, not just a described concept.
+
+---
+
+## Repo Hygiene
+
+This repo is intentionally kept free of runtime slop.
+
+Ignored artifacts now include:
+- top-level transcript/session `*.jsonl`
+- `subagents/` runtime output
+- `tool-results/`
+- `.claude/commands/`
+- `__pycache__/`
+- `.coverage-thresholds.json`
+
+GitHub should represent the system definition and durable state, not transient local execution debris.
+
+---
+
+## Working Assumptions
+
+These are the current assumptions behind the system:
+- Opus remains the controller
+- MiniMax remains the default worker model
+- external/plugin agents are optional tools, not the main path
+- routing should optimize for execution volume and useful delegation, not minimalism for its own sake
+- “efficiency” means higher useful throughput, not just fewer agents
+
+---
+
+## Recommended Next Plan
+
+This is the current plan based on the audit and the fixes already completed.
+
+### Phase A: Parallelism normalization
+- Update `CLAUDE.md` and skill prompts to remove the old “never 2 agents on the same file” rule.
+- Replace low-parallelism wording like “target 2-5 workers” with throughput-based guidance.
+- Define allowed same-file collaboration patterns and integration responsibilities for Opus.
+
+### Phase B: Skill competitiveness
+- Confirm `minimax-dev-workflow` and `minimax-workflow-optimizer` are being selected often enough in real sessions.
+- Tune trigger phrases and auto-activation so MiniMax skills win against installed marketplace skills when appropriate.
+- Add telemetry or log summaries that make skill selection drift obvious.
+
+### Phase C: Worker model enforcement
+- Audit every spawning/delegation prompt for explicit `MiniMax-M2.7` model pinning.
+- Where model pinning is unavailable, document the enforced routing fallback behavior clearly.
+- Add a verification check that flags sessions where Claude workers were used when MiniMax should have been used.
+
+### Phase D: Stronger post-task loop outputs
+- Extend the hook output so each completed task leaves a clearer routing record.
+- Surface stockpile changes directly in the HUD.
+- Add a small session summary artifact or panel that shows what the loop learned from the last task.
+
+### Phase E: Better throughput controls
+- Add a delegation planner that decides worker count based on task breadth, not a hard cap.
+- Introduce task slicing patterns for same-file parallel work.
+- Add guardrails for merge conflicts, duplicated work, and stale context.
+
+### Phase F: Validation
+- Run real tasks and confirm MiniMax skill usage climbs over time.
+- Verify the HUD changes meaningfully after each session.
+- Confirm ECC/plugin routes remain fallback-only in practice, not just in docs.
+
+---
+
+## If You’re Operating This System
+
+Think of it this way:
+- Opus should think broadly and integrate
+- MiniMax should do the bulk of the work
+- the loop should learn after every task
+- the HUD should tell the truth
+- GitHub should stay clean
+
+That is the current intended system behavior.
