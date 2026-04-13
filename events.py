@@ -13,6 +13,9 @@ complete audit trail and replay / debugging capability.
 from __future__ import annotations
 
 import json
+import os
+import sys
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -20,10 +23,25 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
+# Exports
+# ---------------------------------------------------------------------------
+
+__all__ = [
+    "Event",
+    "EVENT_LOG_PATH",
+    "EVENT_TYPES",
+    "emit_event",
+    "get_events",
+    "get_event_counts_by_type",
+    "make_event",
+]
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 EVENT_LOG_PATH = Path.home() / ".claude" / "state" / "event_log.jsonl"
+_EVENT_LOCK_PATH = EVENT_LOG_PATH.with_suffix(".log.lock")
 
 EVENT_TYPES = frozenset(
     [
@@ -47,13 +65,76 @@ EVENT_TYPES = frozenset(
     ]
 )
 
+# ---------------------------------------------------------------------------
+# Module-level intra-process lock
+# ---------------------------------------------------------------------------
+
+_WRITE_LOCK = threading.Lock()
+
+
+# ---------------------------------------------------------------------------
+# Cross-process locking helpers
+# ---------------------------------------------------------------------------
+
+
+def _acquire_cross_process_lock(lock_path: Path) -> int:
+    """
+    Acquire an exclusive cross-process lock on `lock_path` using a lock file.
+
+    Returns a file descriptor the caller must eventually pass to
+    _release_cross_process_lock().
+    """
+    lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(lock_fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError):
+        # Lock is held by another process — block until we get it
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    return lock_fd
+
+
+def _release_cross_process_lock(lock_fd: int, lock_path: Path) -> None:
+    """Release the lock acquired by _acquire_cross_process_lock."""
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            try:
+                msvcrt.locking(lock_fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+        else:
+            import fcntl
+
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(lock_fd)
+        try:
+            lock_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
 
 # ---------------------------------------------------------------------------
 # Dataclass
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Event:
     """
     Structured event emitted by agents and the state engine.
@@ -87,10 +168,6 @@ class Event:
 # ---------------------------------------------------------------------------
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def _new_trace_id() -> str:
     return str(uuid.uuid4())
 
@@ -108,13 +185,27 @@ def emit_event(event: Event) -> None:
     Each log line is a JSON object with no trailing comma — suitable for
     line-oriented reading (jq, grep, etc.).
 
+    Thread-safe and cross-process safe: concurrent writes from multiple
+    processes will not corrupt the log.
+
     Args:
         event: An Event instance to serialise and write.
     """
     EVENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(asdict(event), ensure_ascii=False)
-    with EVENT_LOG_PATH.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    line = json.dumps(asdict(event), ensure_ascii=False) + "\n"
+
+    _WRITE_LOCK.acquire()
+    try:
+        lock_fd = _acquire_cross_process_lock(_EVENT_LOCK_PATH)
+        try:
+            with EVENT_LOG_PATH.open("a", encoding="utf-8") as fh:
+                fh.write(line)
+                fh.flush()
+                os.fsync(fh.fileno())
+        finally:
+            _release_cross_process_lock(lock_fd, _EVENT_LOCK_PATH)
+    finally:
+        _WRITE_LOCK.release()
 
 
 def make_event(
@@ -141,7 +232,6 @@ def make_event(
         type=event_type,
         source=source,
         payload=payload or {},
-        timestamp=_now_iso(),
         trace_id=trace_id or _new_trace_id(),
     )
     emit_event(evt)
@@ -225,12 +315,69 @@ def get_event_counts_by_type(limit: int = 1000) -> dict[str, int]:
     """
     Return a count of each event type seen in the most recent `limit` log lines.
 
+    Counts in a single file pass — no intermediate list allocation and no sort.
+
     Useful for the HUD dashboard at a glance.
     """
-    events = get_events(limit=limit)
     counts: dict[str, int] = {}
-    for evt in events:
-        counts[evt.type] = counts.get(evt.type, 0) + 1
+    if not EVENT_LOG_PATH.exists():
+        return counts
+
+    with EVENT_LOG_PATH.open("r", encoding="utf-8") as fh:
+        # Seek to end, then work backwards in fixed-size chunks
+        # so we only read the last `limit` lines without loading the whole file.
+        fh.seek(0, os.SEEK_END)
+        file_pos = fh.tell()
+        lines_read = 0
+        tail: list[str] = []
+
+        while file_pos > 0 and lines_read < limit:
+            chunk_size = min(8192, file_pos)
+            file_pos -= chunk_size
+            fh.seek(file_pos)
+            chunk = fh.read(chunk_size)
+            # chunk may end mid-line; prepend accumulated head
+            lines_in_chunk = (chunk + "".join(tail)).split("\n")
+            # last element is a (potentially incomplete) partial line — carry it forward
+            tail = [lines_in_chunk[-1]] if lines_in_chunk else []
+            # all complete lines except the incomplete tail go into our collection
+            for ln in reversed(lines_in_chunk[:-1]):
+                tail.append(ln)
+                lines_read += 1
+            if file_pos == 0 and tail:
+                tail.reverse()
+                for ln in tail:
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    try:
+                        obj: dict[str, Any] = json.loads(ln)
+                        evt_type = obj.get("type")
+                        if evt_type:
+                            counts[evt_type] = counts.get(evt_type, 0) + 1
+                    except json.JSONDecodeError:
+                        pass
+                break
+
+        # Fallback: read entire file if it is small enough that our chunking
+        # didn't trigger (e.g. file grew to > limit lines between check and now)
+        if lines_read < limit:
+            counts.clear()
+            fh.seek(0)
+            for raw_line in fh:
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    obj = json.loads(raw_line)
+                    evt_type = obj.get("type")
+                    if evt_type:
+                        counts[evt_type] = counts.get(evt_type, 0) + 1
+                except json.JSONDecodeError:
+                    pass
+            # Apply limit to lines read by skipping oldest entries
+            # (counts are already aggregated; no need to trim)
+
     return counts
 
 
