@@ -258,6 +258,33 @@ def _split_bar(claude_pct: float, minimax_pct: float) -> Text:
     return t
 
 
+def _trend_bar(values: list[float]) -> Text:
+    """Compact trend sparkline for utilization percentages."""
+    if not values:
+        return Text("no data", style="dim")
+    result = Text()
+    for value in values[-12:]:
+        if value >= 0.9:
+            result.append("█", style="green")
+        elif value >= 0.75:
+            result.append("▓", style="yellow")
+        else:
+            result.append("░", style="red")
+    return result
+
+
+def _category_split_label(category_splits: dict, key: str, short: str) -> Text:
+    split = category_splits.get(key, {})
+    minimax_pct = split.get("minimax", 0.0) * 100
+    claude_pct = split.get("claude", 0.0) * 100
+    text = Text()
+    text.append(f"{short} ", style="bold dim")
+    text.append(f"M{minimax_pct:.0f}", style="green" if minimax_pct >= 90 else "yellow")
+    text.append("/", style="dim")
+    text.append(f"C{claude_pct:.0f}", style="red" if claude_pct > 10 else "dim")
+    return text
+
+
 def _pipeline_bar(counts: dict[str, int]) -> Text:
     """6-state horizontal bar: GEN VAL PRO REJ DIS PEN."""
     states = [
@@ -471,8 +498,13 @@ def _build_routing_panel(state: dict) -> Panel:
     escalation_count: int = rout.get("escalation_count", 0)
     bad_routing: int = rout.get("bad_routing_incidents", 0)
     claude_overuse: bool = rout.get("claude_overuse", False)
+    delegation_miss_rate: float = rout.get("delegation_miss_rate", 0.0)
+    claude_execution_leak: int = rout.get("claude_execution_leak", 0)
+    category_splits: dict = rout.get("category_split_pct", {})
+    minimax_trend: list[float] = rout.get("minimax_utilization_trend", [])
 
     bar = _split_bar(claude_pct, minimax_pct)
+    trend = _trend_bar(minimax_trend)
 
     t = Table(box=None, show_header=False, padding=(0, 1))
     t.add_column(style="bold dim", width=10)
@@ -481,8 +513,31 @@ def _build_routing_panel(state: dict) -> Panel:
     t.add_row("Claude", f"{claude_pct * 100:.0f}%")
     t.add_row("MiniMax", f"{minimax_pct * 100:.0f}%")
     t.add_row("Split", str(bar))
+    t.add_row("Miss rate", f"{delegation_miss_rate * 100:.0f}%")
+    t.add_row("Leak", str(claude_execution_leak))
+    t.add_row("Util trend", trend)
     t.add_row("Escalations", str(escalation_count))
     t.add_row("Bad routing", str(bad_routing))
+    t.add_row(
+        "By cat",
+        Text.assemble(
+            _category_split_label(category_splits, "implementation", "Imp"),
+            "  ",
+            _category_split_label(category_splits, "debugging", "Dbg"),
+            "  ",
+            _category_split_label(category_splits, "review", "Rev"),
+        ),
+    )
+    t.add_row(
+        "",
+        Text.assemble(
+            _category_split_label(category_splits, "verification", "Ver"),
+            "  ",
+            _category_split_label(category_splits, "orchestration", "Orc"),
+            "  ",
+            _category_split_label(category_splits, "synthesis", "Syn"),
+        ),
+    )
 
     if claude_overuse:
         t.add_row("", Text("  [!] Claude overuse", style="red bold"))

@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-04-13T16:14:58.083482+00:00",
+  "last_updated": "2026-04-13T17:02:51.200125+00:00",
   "agents": [
     {
       "agent_id": "code-fix-agent",
@@ -27,8 +27,8 @@
       "role": "Session retrospectives to _learnings.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 1,
-      "calls": 1,
+      "sessions": 9,
+      "calls": 9,
       "token_usage": 0,
       "last_used": "2026-04-13"
     },
@@ -38,8 +38,8 @@
       "role": "Budget tracking to _token_log.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 1,
-      "calls": 1,
+      "sessions": 9,
+      "calls": 9,
       "token_usage": 0,
       "last_used": "2026-04-13"
     },
@@ -59,8 +59,8 @@
       "role": "Benchmark and optimize stockpile to _stockpile.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 1,
-      "calls": 1,
+      "sessions": 9,
+      "calls": 9,
       "token_usage": 0,
       "last_used": "2026-04-13"
     },
@@ -68,8 +68,8 @@
       "agent_id": "state-producer-agent",
       "display_name": "state-producer-agent",
       "lifecycle_state": "core",
-      "calls": 1,
-      "sessions": 1,
+      "calls": 9,
+      "sessions": 9,
       "last_used": "2026-04-13"
     }
   ],

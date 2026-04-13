@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"MANDATORY ROUTING ORDER: 1. Opus follows C:/Users/Charlie/.claude/CLAUDE.md and keeps MiniMax as the default execution path. 2. Prefer internal MiniMax skills first: minimax-delegation for direct execution, minimax-dev-workflow for non-trivial development work, minimax-workflow-optimizer for tracked/self-improving runs. 3. Explicitly pin worker execution to MiniMax-M2.7 whenever the Agent tool supports model selection. 4. External/plugin/ECC agents are fallback only when the user explicitly asks for them or no internal MiniMax skill/stockpiled MiniMax agent fits the task. 5. Workers report back to Opus only.\"}}'",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"HARD ROUTING POLICY: Opus is for orchestration, decomposition, integration, final synthesis, and edge-case fallback only. If a task involves writing code, modifying code, debugging, review, refactor, verification, iteration, or multi-step executable reasoning, delegate to internal MiniMax immediately. Prefer delegation unless strictly unnecessary. Explicitly pin workers to MiniMax-M2.7 whenever model selection is supported. Do not silently fall back to Claude/plugin execution for delegatable work. External/plugin/ECC agents are fallback only.\"}}'",
             "shell": "bash"
           }
         ]

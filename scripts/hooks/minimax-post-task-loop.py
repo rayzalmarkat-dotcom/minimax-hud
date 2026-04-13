@@ -19,6 +19,7 @@ import hashlib
 import json
 import re
 import sys
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,7 @@ HOME = Path.home()
 CLAUDE_ROOT = HOME / ".claude"
 STATE_ROOT = CLAUDE_ROOT / "state"
 APP_STATE_PATH = STATE_ROOT / "minimax_post_task_loop.json"
+ERROR_LOG_PATH = STATE_ROOT / "minimax_post_task_loop_errors.log"
 CLAUDE_JSON_PATH = HOME / ".claude.json"
 TOKEN_LOG_PATH = CLAUDE_ROOT / "skills" / "_token_log.md"
 LEARNINGS_PATH = CLAUDE_ROOT / "skills" / "_learnings.md"
@@ -59,6 +61,8 @@ except Exception:
 @dataclass
 class TranscriptSummary:
     task_name: str
+    category: str
+    delegatable: bool
     files_modified: list[str]
     tools_used: list[str]
 
@@ -73,6 +77,23 @@ def _read_json(path: Path, default: Any) -> Any:
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _log_failure(exc: BaseException) -> None:
+    STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().isoformat()
+    details = "".join(traceback.format_exception(exc))
+    message = f"[{stamp}] minimax-post-task-loop failure\n{details}\n"
+    try:
+        with ERROR_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(message)
+    except Exception:
+        pass
+    try:
+        sys.stderr.write(message)
+        sys.stderr.flush()
+    except Exception:
+        pass
 
 
 def _read_text(path: Path) -> str:
@@ -116,15 +137,57 @@ def _extract_text(raw_content: Any) -> str:
     return ""
 
 
+def _classify_task(task_name: str, tools_used: list[str]) -> tuple[str, bool]:
+    text = f"{task_name} {' '.join(tools_used)}".lower()
+
+    if any(word in text for word in ("review", "audit", "code review")):
+        return "review", True
+    if any(
+        word in text
+        for word in ("verify", "verification", "test", "pytest", "py_compile")
+    ):
+        return "verification", True
+    if any(
+        word in text
+        for word in ("debug", "bug", "fix", "error", "failure", "broken")
+    ):
+        return "debugging", True
+    if any(
+        word in text
+        for word in (
+            "implement",
+            "build",
+            "create",
+            "write",
+            "modify",
+            "edit",
+            "change",
+            "refactor",
+            "add",
+        )
+    ):
+        return "implementation", True
+    if any(word in text for word in ("summarize", "summary", "explain", "synthesis")):
+        return "synthesis", False
+    if any(
+        word in text for word in ("plan", "orchestrate", "route", "decompose", "policy")
+    ):
+        return "orchestration", False
+    return "implementation", True
+
+
 def _summarize_transcript(transcript_path: Path | None) -> TranscriptSummary:
     if not transcript_path or not transcript_path.exists():
+        category, delegatable = _classify_task("implementation task", [])
         return TranscriptSummary(
-            task_name="MiniMax-routed task",
+            task_name="implementation task",
+            category=category,
+            delegatable=delegatable,
             files_modified=[],
             tools_used=[],
         )
 
-    last_user_message = "MiniMax-routed task"
+    last_user_message = "implementation task"
     files_modified: list[str] = []
     tools_used: list[str] = []
     seen_files: set[str] = set()
@@ -173,7 +236,15 @@ def _summarize_transcript(transcript_path: Path | None) -> TranscriptSummary:
                     files_modified.append(file_path)
 
     task_name = re.sub(r"\s+", " ", last_user_message).strip()[:120]
-    return TranscriptSummary(task_name=task_name, files_modified=files_modified[:12], tools_used=tools_used[:12])
+    tools_used = tools_used[:12]
+    category, delegatable = _classify_task(task_name, tools_used)
+    return TranscriptSummary(
+        task_name=task_name,
+        category=category,
+        delegatable=delegatable,
+        files_modified=files_modified[:12],
+        tools_used=tools_used,
+    )
 
 
 def _current_skill_counts() -> dict[str, int]:
@@ -253,19 +324,33 @@ def _emit_state(summary: TranscriptSummary, tracked_requests_delta: int, activat
         "minimax-post-task-loop",
         {
             "task": summary.task_name,
+            "category": summary.category,
+            "delegatable": summary.delegatable,
             "tracked_requests": tracked_requests_delta,
             "workflows": activations,
             "files": summary.files_modified,
         },
     )
+    delegation_miss = summary.delegatable and tracked_requests_delta <= 0
+    minimax_delta = 0
+    claude_delta = 0
+    if summary.category in {"orchestration", "synthesis"} and not summary.delegatable:
+        claude_delta = 1
+    elif delegation_miss:
+        claude_delta = 1
+    else:
+        minimax_delta = max(1, tracked_requests_delta)
+
     events.make_event(
         "routing_decision_made",
         "minimax-post-task-loop",
         {
-            "chosen_route": "minimax",
+            "chosen_route": "claude" if claude_delta > 0 else "minimax",
             "controller": "Opus",
             "worker_model": "MiniMax-M2.7",
             "task": summary.task_name,
+            "category": summary.category,
+            "delegation_miss": delegation_miss,
         },
         trace_id=trace_event.trace_id,
     )
@@ -275,16 +360,17 @@ def _emit_state(summary: TranscriptSummary, tracked_requests_delta: int, activat
         {
             "task": summary.task_name,
             "source": "auto-post-task-loop",
+            "category": summary.category,
         },
         trace_id=trace_event.trace_id,
     )
-
-    minimax_delta = max(2, tracked_requests_delta)
     state_engine.log_routing_decision(
-        claude_calls_delta=1,
+        claude_calls_delta=claude_delta,
         minimax_calls_delta=minimax_delta,
         escalation=False,
-        bad_routing=False,
+        bad_routing=delegation_miss,
+        category=summary.category,
+        claude_executed_delegatable=delegation_miss,
     )
     state_engine.log_learning_change("generated")
 
@@ -347,10 +433,6 @@ def main() -> int:
 
     snapshot_payload = {"last_signature": signature, "skill_counts": counts}
 
-    if tracked_requests_delta <= 0:
-        _write_json(APP_STATE_PATH, snapshot_payload)
-        return 0
-
     now = datetime.now()
     stamp = now.strftime("%Y-%m-%d %H:%M")
     today = now.strftime("%Y-%m-%d")
@@ -359,6 +441,8 @@ def main() -> int:
     activation_summary = ", ".join(
         f"{key} +{value}" for key, value in activations.items() if value > 0
     )
+    if not activation_summary:
+        activation_summary = "none"
     files_summary = ", ".join(summary.files_modified) if summary.files_modified else "none observed"
     tools_summary = ", ".join(summary.tools_used) if summary.tools_used else "none observed"
 
@@ -367,6 +451,8 @@ def main() -> int:
 ## Session: {stamp} — Auto MiniMax loop
 
 Task: {summary.task_name}
+Category: {summary.category}
+Delegatable: {"yes" if summary.delegatable else "no"}
 Tracked requests: {tracked_requests_delta}
 Workflow activations: {activation_summary}
 Files touched: {files_summary}
@@ -380,13 +466,15 @@ Efficiency tokens: unavailable from hook
 ## Session: {stamp} — Auto loop: {summary.task_name}
 
 ### What worked
-- Opus kept the execution path on MiniMax using: {activation_summary}.
+- Task category: `{summary.category}`.
+- Delegatable: `{summary.delegatable}`.
+- Routing outcome: `{"delegation miss" if summary.delegatable and tracked_requests_delta <= 0 else "MiniMax execution"}`.
 
 ### What failed
 - Claude Code hooks do not expose raw MiniMax worker request totals, so tracked requests are a conservative lower bound.
 
 ### Actionable improvement
-- Keep worker dispatch pinned to `MiniMax-M2.7` and prefer internal MiniMax skills before any plugin fallback.
+- Keep worker dispatch pinned to `MiniMax-M2.7`, prefer internal MiniMax skills, and treat Claude execution of delegatable work as a routing penalty.
 """
     _append_if_missing(LEARNINGS_PATH, marker, learning_block)
 
@@ -399,5 +487,6 @@ Efficiency tokens: unavailable from hook
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception:
+    except Exception as exc:
+        _log_failure(exc)
         raise SystemExit(0)

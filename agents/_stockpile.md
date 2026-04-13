@@ -12,11 +12,11 @@ Managed by: agent-stockpile-manager + minimax-post-task-loop
 |-------|------|---------|-----------|-------------|---------------|
 | code-fix-agent | code-fix-agent.md | Fix issues in files | 2026-04-12 | 1 | medium |
 | code-review-agent | code-review-agent.md | Review code, rubric-scored | 2026-04-12 | 1 | medium |
-| learning-agent | learning-agent.md | Extract learnings from sessions | 2026-04-13 | 2 | medium |
-| token-budget-agent | token-budget-agent.md | Track token burn rate | 2026-04-13 | 2 | medium |
+| learning-agent | learning-agent.md | Extract learnings from sessions | 2026-04-13 | 10 | medium |
+| token-budget-agent | token-budget-agent.md | Track token burn rate | 2026-04-13 | 10 | medium |
 | git-commit-agent | git-commit-agent.md | Write conventional commits | 2026-04-12 | 1 | medium |
-| agent-stockpile-manager | agent-stockpile-manager.md | Auto-manage the stockpile | 2026-04-13 | 2 | medium |
-| state-producer-agent | state-producer-agent.md | Emit events + state updates after tasks | 2026-04-13 | 1 | new |
+| agent-stockpile-manager | agent-stockpile-manager.md | Auto-manage the stockpile | 2026-04-13 | 10 | medium |
+| state-producer-agent | state-producer-agent.md | Emit events + state updates after tasks | 2026-04-13 | 9 | new |
 
 ## Candidate Agents
 

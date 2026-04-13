@@ -1,14 +1,81 @@
 {
-  "last_updated": "2026-04-13T16:14:58.039883+00:00",
-  "claude_calls": 1,
-  "minimax_calls": 2,
+  "last_updated": "2026-04-13T17:02:51.152981+00:00",
+  "claude_calls": 2,
+  "minimax_calls": 17,
   "escalation_count": 0,
   "bad_routing_incidents": 0,
-  "claude_overuse": false,
+  "claude_overuse": true,
   "arbitration_count": 0,
   "unresolved_conflicts": 0,
   "workload_split_pct": {
-    "claude": 0.3333333333333333,
-    "minimax": 0.6666666666666666
-  }
+    "claude": 0.10526315789473684,
+    "minimax": 0.8947368421052632
+  },
+  "category_counts": {
+    "implementation": {
+      "claude": 0,
+      "minimax": 15
+    },
+    "debugging": {
+      "claude": 0,
+      "minimax": 0
+    },
+    "review": {
+      "claude": 0,
+      "minimax": 0
+    },
+    "verification": {
+      "claude": 0,
+      "minimax": 0
+    },
+    "orchestration": {
+      "claude": 1,
+      "minimax": 0
+    },
+    "synthesis": {
+      "claude": 0,
+      "minimax": 0
+    }
+  },
+  "category_split_pct": {
+    "implementation": {
+      "claude": 0.0,
+      "minimax": 1.0
+    },
+    "debugging": {
+      "claude": 0.0,
+      "minimax": 0.0
+    },
+    "review": {
+      "claude": 0.0,
+      "minimax": 0.0
+    },
+    "verification": {
+      "claude": 0.0,
+      "minimax": 0.0
+    },
+    "orchestration": {
+      "claude": 1.0,
+      "minimax": 0.0
+    },
+    "synthesis": {
+      "claude": 0.0,
+      "minimax": 0.0
+    }
+  },
+  "delegation_miss_rate": 0.0,
+  "minimax_utilization_trend": [
+    0.5,
+    0.6,
+    0.7143,
+    0.7778,
+    0.8182,
+    0.8462,
+    0.8667,
+    0.8824,
+    0.8947
+  ],
+  "delegatable_tasks": 8,
+  "delegation_miss_count": 0,
+  "claude_execution_leak": 0
 }

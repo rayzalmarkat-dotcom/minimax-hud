@@ -1,152 +1,130 @@
 ---
 name: minimax-delegation
-description: Route executable work from Opus to MiniMax-M2.7 workers. Default execution path for internal coding, writing, research, and file-operation tasks when MiniMax should do the work and report back to Opus.
+description: Mandatory MiniMax-first execution routing. Use this skill whenever a task involves implementation, editing, debugging, review, verification, iteration, or other delegatable work. Opus should think briefly, delegate immediately, and reserve itself for orchestration and synthesis.
 origin: superpowers
 auto_activate: true
 triggers:
   - "use minimax"
   - "delegate to minimax"
-  - "run the minimax system"
   - "implement this"
   - "fix this"
-  - "build this"
-  - "do this"
+  - "debug this"
+  - "review this"
+  - "refactor this"
+  - "verify this"
+  - "iterate on this"
 ---
 
 # MiniMax Agent Delegation
 
-Spawn MiniMax-M2.7 workers to execute tasks while Opus stays in controller/synthesis mode.
+This is the default execution route.
+If the task can be delegated, do not perform it directly.
 
 ## When to Activate
 
-- Any task requiring execution (code, write, research, file operations)
-- User asks to "do" something
-- Task could be split into parallel sub-tasks
-- A skill matches the task and MiniMax should execute using that skill's guidance
-- Default routing should stay here before considering marketplace/plugin agents
+Activate for any task involving:
+- writing code
+- modifying code
+- debugging
+- review
+- refactoring
+- verification
+- iteration
+- multi-step reasoning with executable work
 
-## How to Spawn an Agent
+Opus should remain the controller, not the worker.
 
-Use the Agent tool and explicitly pin the worker model to `MiniMax-M2.7` whenever the current build supports model selection.
+## Hard Routing Rule
 
-```
-Agent(tool, {
+If the task is delegatable:
+1. think briefly
+2. decompose
+3. delegate to MiniMax
+4. integrate results
+
+Do not keep execution local to Claude unless delegation is strictly unnecessary.
+
+## How to Spawn a Worker
+
+Always pin the worker model explicitly:
+
+```js
+Agent(worker, {
   subagent_type: "general-purpose",
   model: "MiniMax-M2.7",
-  prompt: "<task description + any relevant context>"
+  prompt: "<task + context + constraints>"
 })
 ```
 
-If the Agent tool in the current Claude build does not expose `model`, routing logic must still treat MiniMax as required and must not silently fall back to Claude/plugin workers.
+If the current build does not expose `model`, routing must still remain on the MiniMax path and must not silently fall back to Claude/plugin workers.
 
-## Prompt Template for Spawning
+## Prompt Template
 
-```
+```text
 You are a MiniMax-M2.7 execution worker.
 
-<Task description from Opus>
+Opus Max is the controller.
+You are responsible for execution, iteration, and reporting evidence back to Opus.
 
-<Any skill-specific rules/goals if applicable>
+Task:
+<task description>
 
-Return your findings/results to the orchestrator (Opus Max).
+Context:
+<prepared context from Opus>
+
+Constraints:
+<rules, files, priorities, verification expectations>
+
+Return concrete results, blockers, and verification evidence to Opus.
 ```
 
-## Spawn Patterns
+## Preferred Spawn Patterns
 
-### Single Agent
-For straightforward single-task execution.
+### Single Worker
+Use for one narrow executable task.
 
-```
-Agent(task_agent, {
-  subagent_type: "general-purpose",
-  model: "MiniMax-M2.7",
-  prompt: "Fix the bug in file X. The issue is..."
-})
-```
+### Parallel Workers
+Use whenever multiple subtasks can proceed simultaneously.
+Aggressive parallelism is preferred when it improves throughput.
 
-### Parallel Agents
-For independent sub-tasks that can run simultaneously.
+### Same-File Collaboration
+Multiple MiniMax workers may contribute around the same file if their roles are clearly separated.
 
-```
-Agent(agent_A, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Task A" })
-Agent(agent_B, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Task B" })
-Agent(agent_C, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Task C" })
-// Wait for all → synthesize
-```
+Good examples:
+- audit + patch + verify
+- logic + tests + docs
+- refactor plan + implementation + regression check
 
-### Sequential Agents
-For chained tasks where output feeds into next.
+Avoid blind overlapping edits with no integration plan.
 
-```
-Agent(first, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Step 1" })
-// Take output → feed into step 2
-Agent(second, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Step 2, based on: " + first.output })
-```
+### Sequential Workers
+Use when one result feeds the next.
 
-### Hybrid
-For complex multi-phase workflows.
+## Delegation Standard
 
-```
-// Phase 1: Parallel research
-Agent(r1, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Research aspect A" })
-Agent(r2, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Research aspect B" })
+For implementation, debugging, review, refactor, verification, and iteration:
+- default to delegation
+- prefer more MiniMax execution, not less
+- use Opus for integration and synthesis only
 
-// Phase 2: Synthesize findings (Opus)
-// Phase 3: Parallel execution
-Agent(e1, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Execute based on research A" })
-Agent(e2, { subagent_type: "general-purpose", model: "MiniMax-M2.7", prompt: "Execute based on research B" })
-```
+## Result Handling
 
-## Decision: Single vs Parallel vs Sequential
+- Simple tasks: Opus may present the MiniMax result directly
+- Complex tasks: Opus synthesizes multiple MiniMax outputs
 
-| Task Structure | Pattern |
-|---------------|---------|
-| One independent task | SINGLE |
-| 2+ independent sub-tasks | PARALLEL |
-| Tasks with dependencies | SEQUENTIAL |
-| Complex multi-phase | HYBRID |
+The synthesis step does not make Opus the executor.
 
-**Rule of thumb:** If you can say "X and Y can happen at the same time" → PARALLEL.
+## Failure Handling
 
-## Error Handling for Spawned Agents
+If a worker fails:
+1. retry once if the task is still well-scoped
+2. re-slice the task if the issue was decomposition
+3. escalate to Opus-only fallback only when delegation is genuinely blocked
 
-```
-If agent fails:
-  → Retry once with same prompt
-  → Still fails → Log failure, report to user
-  → Partial failure in parallel → collect outputs from successful agents, report failed ones
-```
+## Non-Negotiables
 
-## Returning Results to User
-
-- **Simple tasks:** MiniMax reports directly (bystander mode)
-- **Complex tasks:** Opus synthesizes MiniMax outputs before presenting
-
-Default to direct reporting. Synthesize when:
-- Multiple agents ran in parallel
-- Results need cross-referencing
-- User would benefit from a summary
-
-## Quality Standards for Spawned Agents
-
-Each MiniMax agent should:
-- Complete the assigned task fully
-- Report clearly what was done and what was found
-- Flag any blockers or uncertainties
-- Return actionable output (working code, complete text, etc.)
-
-## Examples
-
-```
-"Build me a Python script that does X"
-→ Spawn single MiniMax agent
-
-"Refactor the auth module and add tests"
-→ Sequential: refactor → test
-
-"Research competitor products A, B, and C simultaneously"
-→ 3 parallel MiniMax-M2.7 workers, one per competitor
-
-"Build a full user authentication system"
-→ Hybrid: parallel workers for components → synthesize → parallel workers for integration
-```
+1. Prefer delegation unless strictly unnecessary
+2. Use explicit `model: "MiniMax-M2.7"` pinning
+3. Do not silently fall back to Claude execution
+4. Use multiple workers freely when it improves throughput
+5. Opus integrates; MiniMax executes

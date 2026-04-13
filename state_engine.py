@@ -48,6 +48,19 @@ _CHANGELOG_FILE = "changelog.json"
 _ROUTING_STATE_FILE = "routing_state.json"
 _VERIFICATION_FILE = "verification_state.json"
 
+ROUTING_CATEGORIES = (
+    "implementation",
+    "debugging",
+    "review",
+    "verification",
+    "orchestration",
+    "synthesis",
+)
+
+DELEGATABLE_CATEGORIES = frozenset(
+    ["implementation", "debugging", "review", "verification"]
+)
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -343,6 +356,8 @@ def log_routing_decision(
     minimax_calls_delta: int = 0,
     escalation: bool = False,
     bad_routing: bool = False,
+    category: str | None = None,
+    claude_executed_delegatable: bool = False,
 ) -> None:
     """
     Update routing_state.json after a routing decision.
@@ -350,12 +365,20 @@ def log_routing_decision(
     Recomputes workload_split_pct from cumulative totals.
 
     Args:
-        claude_calls_delta:   Change in Claude (Opus/Sonnet) call count.
+        claude_calls_delta:   Change in Claude/Opus execution count.
         minimax_calls_delta:  Change in MiniMax call count.
         escalation:           Whether this decision required human escalation.
         bad_routing:          Whether routing was suboptimal.
+        category:             Task category for per-category routing.
+        claude_executed_delegatable:
+                              Whether Claude executed a delegatable task.
     """
     state = read_state(_ROUTING_STATE_FILE)
+    state.setdefault("delegation_miss_count", 0)
+    state.setdefault("delegation_miss_rate", 0.0)
+    state.setdefault("claude_execution_leak", 0)
+    state.setdefault("delegatable_tasks", 0)
+    state.setdefault("minimax_utilization_trend", [])
 
     state["claude_calls"] = state.get("claude_calls", 0) + claude_calls_delta
     state["minimax_calls"] = state.get("minimax_calls", 0) + minimax_calls_delta
@@ -365,16 +388,61 @@ def log_routing_decision(
     if bad_routing:
         state["bad_routing_incidents"] = state.get("bad_routing_incidents", 0) + 1
 
+    category_key = category if category in ROUTING_CATEGORIES else None
+    category_counts = state.get("category_counts", {})
+    for key in ROUTING_CATEGORIES:
+        category_counts.setdefault(key, {"claude": 0, "minimax": 0})
+    if category_key is not None:
+        category_counts[category_key]["claude"] += claude_calls_delta
+        category_counts[category_key]["minimax"] += minimax_calls_delta
+        if category_key in DELEGATABLE_CATEGORIES:
+            state["delegatable_tasks"] = state.get("delegatable_tasks", 0) + 1
+    state["category_counts"] = category_counts
+
+    if claude_executed_delegatable:
+        state["delegation_miss_count"] = state.get("delegation_miss_count", 0) + 1
+        state["claude_execution_leak"] = state.get("claude_execution_leak", 0) + 1
+
     total = state["claude_calls"] + state["minimax_calls"]
     if total > 0:
         state["workload_split_pct"] = {
             "claude": state["claude_calls"] / total,
             "minimax": state["minimax_calls"] / total,
         }
-        state["claude_overuse"] = state["claude_calls"] / total > 0.5
     else:
         state["workload_split_pct"] = {"claude": 0.0, "minimax": 0.0}
-        state["claude_overuse"] = False
+
+    category_split_pct: dict[str, dict[str, float]] = {}
+    for key, counts in category_counts.items():
+        category_total = counts.get("claude", 0) + counts.get("minimax", 0)
+        if category_total > 0:
+            category_split_pct[key] = {
+                "claude": counts.get("claude", 0) / category_total,
+                "minimax": counts.get("minimax", 0) / category_total,
+            }
+        else:
+            category_split_pct[key] = {"claude": 0.0, "minimax": 0.0}
+    state["category_split_pct"] = category_split_pct
+
+    delegatable_tasks = state.get("delegatable_tasks", 0)
+    miss_count = state.get("delegation_miss_count", 0)
+    miss_rate = miss_count / delegatable_tasks if delegatable_tasks > 0 else 0.0
+    state["delegation_miss_rate"] = miss_rate
+
+    utilization_trend = state.get("minimax_utilization_trend", [])
+    utilization_trend.append(round(state["workload_split_pct"].get("minimax", 0.0), 4))
+    state["minimax_utilization_trend"] = utilization_trend[-20:]
+
+    delegatable_claude_overuse = any(
+        category_split_pct[key]["claude"] > 0.10
+        for key in DELEGATABLE_CATEGORIES
+        if category_split_pct.get(key, {"claude": 0.0})["claude"] > 0.0
+    )
+    state["claude_overuse"] = (
+        state["workload_split_pct"].get("claude", 0.0) > 0.10
+        or miss_rate > 0.05
+        or delegatable_claude_overuse
+    )
 
     state["last_updated"] = _now_iso()
     write_state(_ROUTING_STATE_FILE, state)
@@ -483,15 +551,17 @@ def compute_system_health(
     improvement_confidence = benchmark.get("improvement_confidence", "low")
     verification_coverage = verification.get("verification_coverage", 0.0)
     memory_quality_val = memory.get("usefulness_score", 0.0)
-    routing_confidence_val = routing.get("claude_calls", 0) + routing.get(
-        "minimax_calls", 0
-    )
     total_calls = routing.get("claude_calls", 0) + routing.get("minimax_calls", 0)
+    routing_penalties = routing.get("bad_routing_incidents", 0) + routing.get(
+        "delegation_miss_count", 0
+    )
     routing_confidence_val = (
-        1.0 - (routing.get("bad_routing_incidents", 0) / max(total_calls, 1))
+        1.0 - (routing_penalties / max(total_calls, 1))
         if total_calls > 0
         else 0.0
     )
+    delegation_miss_rate = routing.get("delegation_miss_rate", 0.0)
+    claude_execution_leak = routing.get("claude_execution_leak", 0)
 
     token_budget = (
         token_budget_pct
@@ -518,6 +588,8 @@ def compute_system_health(
         or memory_quality_val < 0.5
         or routing_confidence_val < 0.7
         or regression_risk > 0.2
+        or delegation_miss_rate > 0.1
+        or claude_execution_leak > 0
     ):
         overall_state = "warning"
     else:

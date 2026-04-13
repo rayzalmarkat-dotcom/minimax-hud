@@ -1,102 +1,145 @@
-# MiniMax Agent System — Opus Orchestrated
+# MiniMax Agent System — MiniMax-Dominant Routing
 
 ## Core Architecture
 
 **Opus Max** (`claude-opus-4-7-20251120`) is the sole controller.
 **MiniMax-M2.7** workers are the default execution path.
 
-Opus holds the full context: stockpile, learnings, routing policy, agent specs,
-project state, and session state. MiniMax executes the work. External
-marketplace/plugin agents are fallback tools, not the primary path.
+Opus holds context, routing policy, stockpile state, learnings, and integration responsibility.
+MiniMax performs the work.
+External marketplace/plugin agents are fallback tools only.
+
+## Hard Routing Policy
+
+Opus is responsible only for:
+1. orchestration
+2. task decomposition
+3. worker assignment
+4. result integration
+5. final synthesis / answer
+6. edge-case fallback
+
+Opus must not be the default executor for:
+1. implementation
+2. code edits
+3. debugging execution
+4. review passes
+5. refactors
+6. verification loops
+7. repetitive reasoning
+8. iterative retries
+
+If a task can be delegated, do not perform it directly.
 
 ## Routing Priority
 
 For any coding, design, planning, research, writing, or file-operation task:
-1. Opus applies the internal MiniMax routing policy first
+1. Opus applies internal MiniMax routing first
 2. Opus loads matching internal MiniMax skills
 3. Opus dispatches MiniMax-M2.7 workers explicitly
-4. External/plugin agents are used only when the user explicitly asks for them or no internal MiniMax route fits
+4. Opus integrates results and answers
+5. External/plugin agents are used only when explicitly requested or when no internal MiniMax route fits
+
+## Delegation Trigger Rule
+
+If the task involves any of the following:
+- writing code
+- modifying code
+- debugging
+- reviewing code
+- refactoring
+- verification
+- iteration
+- multi-step reasoning
+
+Then:
+- Opus thinks briefly
+- Opus delegates immediately
+- MiniMax does the execution
 
 ## Operating Modes
 
-### Opus Orchestrator Mode
-Opus receives the request → reads `_learnings.md` + `_stockpile.md` → chooses the internal MiniMax skill path → pre-reads files → dispatches MiniMax workers → synthesizes results → the post-task loop updates state
+### Opus Controller Mode
+Opus receives the request → reads `_learnings.md` + `_stockpile.md` → chooses the internal MiniMax path → prepares worker context → dispatches MiniMax workers → integrates results → post-task loop updates state
 
-### MiniMax Bystander Mode
-MiniMax workers handle simple one-shots directly and report back to Opus
+### MiniMax Execution Mode
+MiniMax workers execute the task, report status, surface blockers, and return evidence back to Opus.
 
 ## Decision Tree
 
 ```text
-Is this a simple task? (single file, one fix)
-  → YES → Route through minimax-delegation and spawn a MiniMax-M2.7 worker directly
+Is the task delegatable?
+  -> YES -> delegate to MiniMax immediately
 
-Is this multi-step / multi-file / complex?
-  → YES → Route through minimax-dev-workflow → Opus pre-reads → dispatches MiniMax-M2.7 workers → synthesize → post-task loop
+Is it implementation / debugging / review / verification / iteration?
+  -> YES -> MiniMax is mandatory
 
-Is this a planning / architecture decision?
-  → YES → Opus stays controller, may spawn MiniMax-M2.7 workers for bounded research/execution
+Is it orchestration, integration, or final user synthesis?
+  -> YES -> Opus handles it
 
-Would an external/plugin agent help?
-  → ONLY if the user explicitly asked for it or no internal MiniMax skill / stockpiled MiniMax agent covers the task
+Is an external/plugin agent required?
+  -> ONLY if the user explicitly asked for it or the MiniMax system cannot cover the task
 ```
 
-## Pre-Task Checklist (Opus runs every time)
+## Pre-Task Checklist
 
-Before ANY task:
-1. Read `C:\Users\Charlie\.claude\skills\_learnings.md` — apply learnings, never repeat mistakes
-2. Read `C:\Users\Charlie\.claude\skills\_token_log.md` — requests are the canonical budget unit; warn at 50/75/90%
-3. Read `C:\Users\Charlie\.claude\agents\_stockpile.md` — know who your agents are
-4. Choose internal MiniMax skills before considering external/plugin agents
-5. Pre-read files ONCE — paste to workers, never let them re-read
+Before any task:
+1. Read `C:\Users\Charlie\.claude\skills\_learnings.md`
+2. Read `C:\Users\Charlie\.claude\skills\_token_log.md`
+3. Read `C:\Users\Charlie\.claude\agents\_stockpile.md`
+4. Prefer internal MiniMax skills before external/plugin agents
+5. Prepare concise worker context so execution can stay on MiniMax
 
-## Post-Task Loop (runs after EVERY task automatically)
+## Post-Task Loop
 
 The Stop hook at `C:\Users\Charlie\.claude\scripts\hooks\minimax-post-task-loop.py`
 runs after each response and updates:
+1. `_token_log.md`
+2. `_learnings.md`
+3. `_stockpile.md`
+4. `state_engine.py` state
+5. routing metrics
+6. HUD-visible health signals
 
-1. `_token_log.md` with tracked MiniMax request activity
-2. `_learnings.md` with an auto-extracted routing/loop learning
-3. `_stockpile.md` session counts for the loop agents
-4. `state_engine.py` + `events.py` so the HUD reflects routing and learning activity
+## MiniMax Execution Discipline
 
-## MiniMax Agent Discipline
+**Rule 1: Prefer delegation unless strictly unnecessary.**
+If MiniMax can do the task, delegate it.
 
-**RULE 1: Pre-read once, paste to workers.**
-Read each file exactly once. Paste content into worker prompts. No re-reads.
+**Rule 2: Opus integrates, MiniMax executes.**
+Opus should not drift into direct implementation or verification loops.
 
-**RULE 2: One worker per file.**
-Never spawn two workers on the same file. Group all issues into one worker.
+**Rule 3: Parallelism is encouraged.**
+Use as many MiniMax workers as materially improve throughput.
+There is no fixed small-worker target.
 
-**RULE 3: Group by file, not by issue.**
-1 worker × 10 fixes in 1 file > 10 workers × 1 fix each. Target: 2-5 workers per project.
+**Rule 4: Same-file parallel work is allowed.**
+Multiple MiniMax workers may contribute around the same file when the work is decomposed clearly and Opus manages ownership, merge order, and integration.
 
-**RULE 4: Opus orchestrates. MiniMax executes.**
-Research, synthesis, planning = Opus. Code, fixes, reviews = MiniMax workers.
+**Rule 5: Explicit MiniMax worker pinning.**
+When spawning workers, explicitly set `model: "MiniMax-M2.7"` whenever the Agent tool supports it.
+If model pinning is unavailable, do not silently reroute work to Claude/plugin workers.
 
-**RULE 5: Log every session.**
-`_token_log.md` + `_learnings.md` + `_stockpile.md` + state JSON files all update after every task.
-
-**RULE 6: Explicit MiniMax worker pinning.**
-When spawning workers, explicitly set `model: "MiniMax-M2.7"` whenever the Agent tool supports it. If model pinning is unavailable in the current build, do not silently reroute work to Claude/plugin workers.
+**Rule 6: Log every session.**
+`_token_log.md`, `_learnings.md`, `_stockpile.md`, and routing/state JSON should update after every task.
 
 ## Skill Load Order
 
-For any coding/design/planning task:
-1. `_learnings.md` (apply past learnings)
-2. `_token_log.md` (check request budget)
-3. `_stockpile.md` (know active agents)
-4. `minimax-delegation` (default execution routing)
-5. `minimax-dev-workflow` (dispatch workflow)
-6. `minimax-workflow-optimizer` (tracked/self-improving runs)
-7. `skill-builder` (if building new skills)
+For any delegatable task:
+1. `_learnings.md`
+2. `_token_log.md`
+3. `_stockpile.md`
+4. `minimax-delegation`
+5. `minimax-dev-workflow`
+6. `minimax-workflow-optimizer`
+7. `skill-builder` if extending the system
 
 ## Specialist Agents
 
 | Agent | Role |
 |-------|------|
-| code-fix-agent | Fix all issues in one file |
-| code-review-agent | Rubric-scored review (CRITICAL → LOW) |
+| code-fix-agent | Execution worker for implementation and bug fixing |
+| code-review-agent | MiniMax review worker |
 | learning-agent | Session retrospectives → `_learnings.md` |
 | token-budget-agent | Request tracking → `_token_log.md` |
 | git-commit-agent | Conventional commits → push to GitHub |
@@ -105,18 +148,23 @@ For any coding/design/planning task:
 ## Request Budget
 
 - **MiniMax-M2.7 canonical budget: 15,000 model requests / 5 hours**
-- Requests are the only canonical budget unit
+- Requests are the canonical budget unit
 - Efficiency token estimates are secondary diagnostics only
-- Warn at: 50%, 75%, 90% of 15,000
-- The hook/state pipeline tracks conservative lower-bound request activity when raw request counts are not exposed by Claude Code
+- Warn at 50%, 75%, 90% of 15,000
+
+## Routing Goal
+
+Target steady-state routing:
+- MiniMax: 90–95%
+- Claude/Opus: 5–10%
+
+Implementation, debugging, review, and verification should trend toward ~100% MiniMax.
+Claude/Opus usage should be mostly orchestration and synthesis.
 
 ## Meta-System
 
-Opus is learning. Every session makes the next one better:
-- `_learnings.md` grows (mistakes + techniques)
-- `_stockpile.md` quality-rates agents
-- `_token_log.md` tracks request activity
-- `state_engine.py` / `event_log.jsonl` keep the HUD live
+Opus is not trying to do the work itself.
+Opus is trying to route the work correctly, integrate it, and learn from it.
 
 ## End Every Response With
 

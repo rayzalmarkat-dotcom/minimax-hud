@@ -146,23 +146,30 @@ READ THIS FILE BEFORE EVERY TASK. New learnings are appended after each session.
 
 ## Anti-Patterns to Never Repeat
 
-1. ❌ Never spawn more than 5 simultaneous agents
-2. ❌ Never have 2 agents edit the same file
-3. ❌ Never let agents re-read files already read (pre-read-once is MANDATORY)
-4. ❌ Never skip post-task logging to _token_log.md
-5. ❌ Never skip learning extraction after session
-6. ❌ Never build without updating MEMORY.md with directory paths
-7. ❌ Never skip py_compile verification after agent edits
-8. ❌ Never skip agent-stockpile-manager benchmark after session
-9. ❌ Never propose a fix before root cause is found (from systematic-debugging)
-10. ❌ Never claim "fixed" or "passes" without running the verification command first (from verification-before-completion)
-11. ❌ Never trust agent "success" reports without fresh evidence
+1. ❌ Never let agents re-read files already read (pre-read-once is MANDATORY)
+2. ❌ Never skip post-task logging to _token_log.md
+3. ❌ Never skip learning extraction after session
+4. ❌ Never build without updating MEMORY.md with directory paths
+5. ❌ Never skip py_compile verification after agent edits
+6. ❌ Never skip agent-stockpile-manager benchmark after session
+7. ❌ Never propose a fix before root cause is found (from systematic-debugging)
+8. ❌ Never claim "fixed" or "passes" without running the verification command first (from verification-before-completion)
+9. ❌ Never trust agent "success" reports without fresh evidence
+
+## Updated Rules (supersede anti-patterns 1-2 above)
+
+The parallelism rules were updated 2026-04-13:
+- Parallelism is AGGRESSIVE by default — use as many MiniMax workers as improve throughput
+- Multiple agents on the same file are ALLOWED when decomposed clearly (audit/patch/verify or logic/tests/docs patterns)
+- Bad patterns: duplicate blind edits, conflicting writes, workers re-discovering context Opus already has
+- Good patterns: one agent per logical concern, Opus owns merge/integration
+- Limiting factor is overlap + merge friction + wasted context — not agent count
 
 ## Token Efficiency Targets
 
 | Metric | Terrible | Bad | Target | Great |
 |--------|----------|-----|--------|-------|
-| Agents per task | 18+ | 10-17 | 2-5 | 1-2 |
+| Agents per task | 18+ wasteful | 10-17 redundant | aggressive parallelism | as needed |
 | File re-reads | Many | Some | Zero | Zero |
 | Session prompts (small task) | >5000 | 2000-5000 | <2000 | <500 |
 | Session prompts (big task) | >15000 | 5000-15000 | 1000-5000 | <1000 |
@@ -202,3 +209,31 @@ Next task → smarter
 
 ### Actionable improvement
 - Keep worker dispatch pinned to `MiniMax-M2.7` and prefer internal MiniMax skills before any plugin fallback.
+
+<!-- minimax-loop:63286be8b7648d5e156c56d0e22bb076503875f6 -->
+## Session: 2026-04-13 17:44 — Auto loop: MiniMax-routed task
+
+### What worked
+- Task category: `orchestration`.
+- Delegatable: `False`.
+- Routing outcome: `MiniMax execution`.
+
+### What failed
+- Claude Code hooks do not expose raw MiniMax worker request totals, so tracked requests are a conservative lower bound.
+
+### Actionable improvement
+- Keep worker dispatch pinned to `MiniMax-M2.7`, prefer internal MiniMax skills, and treat Claude execution of delegatable work as a routing penalty.
+
+<!-- minimax-loop:65efc5841f01af3b77349cb52264d82ce6706ccd -->
+## Session: 2026-04-13 17:44 — Auto loop: implementation task
+
+### What worked
+- Task category: `implementation`.
+- Delegatable: `True`.
+- Routing outcome: `MiniMax execution`.
+
+### What failed
+- Claude Code hooks do not expose raw MiniMax worker request totals, so tracked requests are a conservative lower bound.
+
+### Actionable improvement
+- Keep worker dispatch pinned to `MiniMax-M2.7`, prefer internal MiniMax skills, and treat Claude execution of delegatable work as a routing penalty.

@@ -1,17 +1,20 @@
 {
-  "last_updated": "2026-04-13T00:00:00Z",
-  "current_score": 0.0,
-  "previous_score": 0.0,
-  "rolling_average": 0.0,
-  "delta": 0.0,
-  "improvement_confidence": "low",
+  "last_updated": "2026-04-13T17:02:09.363919+00:00",
+  "current_score": 0.82,
+  "previous_score": 0.75,
+  "rolling_average": 0.7849999999999999,
+  "delta": 0.06999999999999995,
+  "improvement_confidence": "benchmark-confirmed",
   "regression_count": 0,
   "regression_severity": [],
-  "tasks_run": 0,
+  "tasks_run": 2,
   "tasks_improved": 0,
-  "improvement_trend": [],
-  "strongest_domain": "",
+  "improvement_trend": [
+    0.75,
+    0.82
+  ],
+  "strongest_domain": "self-improve-daemon",
   "weakest_domain": "",
   "benchmark_freshness_seconds": 0,
-  "benchmark_confirmed_vs_speculative_ratio": 0.0
+  "benchmark_confirmed_vs_speculative_ratio": 1.0
 }

@@ -44,6 +44,12 @@ TOKEN_LOG = Path.home() / ".claude" / "skills" / "_token_log.md"
 REPO_DIR = Path.home() / ".claude" / "projects" / "C--Users-Charlie"
 HUD_DIR = Path.home() / ".claude"
 
+sys.path.insert(0, str(HUD_DIR))
+try:
+    import state_engine
+except Exception:
+    state_engine = None
+
 MAX_AUDIT_FILES = 3  # files per cycle
 CYCLE_COUNTER_FILE = STATE_DIR / "self_improve_cycle.txt"
 
@@ -132,8 +138,8 @@ ALL_FILES = [
     "agents/state-producer-agent.md",
     "agents/code-fix-agent.md",
     "agents/code-review-agent.md",
-    "skills/minimax-workflow-optimizer.md",
-    "skills/minimax-dev-workflow.md",
+    "skills/minimax-workflow-optimizer/SKILL.md",
+    "skills/minimax-dev-workflow/SKILL.md",
 ]
 
 
@@ -185,87 +191,30 @@ def call_state_engine(
     issues_found: int,
     issues_fixed: int,
 ) -> None:
-    """Update state_engine JSON files directly."""
-    import json
+    """Update benchmark/health state through the shared state engine."""
+    if state_engine is None:
+        return
 
-    # Update benchmark_state
-    bench_path = STATE_DIR / "benchmark_state.json"
-    bench = {}
+    benchmark_confirmed = score >= 0.75 and issues_fixed >= 0
     try:
-        bench = json.loads(bench_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
-
-    WINDOW = 10
-    trend = bench.get("improvement_trend", [])
-    trend.append(score)
-    if len(trend) > WINDOW:
-        trend = trend[-WINDOW:]
-    rolling_avg = sum(trend) / len(trend) if trend else score
-    delta = score - bench.get("rolling_average", 0.0)
-    regression_count = bench.get("regression_count", 0)
-    if score < bench.get("current_score", 1.0):
-        regression_count += 1
-
-    bench.update(
-        {
-            "last_updated": _now_iso(),
-            "current_score": score,
-            "rolling_average": rolling_avg,
-            "delta": delta,
-            "improvement_confidence": "low" if score < 0.7 else "improving",
-            "regression_count": regression_count,
-            "improvement_trend": trend,
-            "tasks_run": bench.get("tasks_run", 0) + 1,
-        }
-    )
-    try:
-        bench_path.parent.mkdir(parents=True, exist_ok=True)
-        bench_path.write_text(json.dumps(bench, indent=2, ensure_ascii=False))
-    except OSError:
-        pass
-
-    # Recompute system_health
-    _recompute_health(bench)
-
-
-def _recompute_health(bench: dict) -> None:
-    """Lightweight health recompute."""
-    import json
-
-    health_path = STATE_DIR / "system_health.json"
-    health = {}
-    try:
-        health = json.loads(health_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        health = {"overall_state": "normal"}
-
-    regression_risk = bench.get("regression_count", 0) / max(
-        bench.get("tasks_run", 1), 1
-    )
-    delta = bench.get("delta", 0.0)
-    confidence = bench.get("improvement_confidence", "low")
-
-    if confidence == "benchmark-confirmed" and regression_risk < 0.15:
-        overall = "benchmark-confirmed"
-    elif delta > 0 and regression_risk < 0.25:
-        overall = "improving"
-    elif bench.get("regression_count", 0) > 2 or regression_risk > 0.4:
-        overall = "regression-risk"
-    else:
-        overall = "normal"
-
-    health.update(
-        {
-            "last_updated": _now_iso(),
-            "overall_state": overall,
-            "regression_risk": round(regression_risk, 4),
-        }
-    )
-    try:
-        health_path.write_text(json.dumps(health, indent=2, ensure_ascii=False))
-    except OSError:
-        pass
+        state_engine.log_benchmark(
+            score=score,
+            task_name=task_name,
+            benchmark_confirmed=benchmark_confirmed,
+            domain="self-improve-daemon",
+        )
+        state_engine.log_changelog_entry(
+            "self-improve",
+            (
+                f"{task_name}: audited {files_audited} file(s), "
+                f"found {issues_found}, fixed {issues_fixed}"
+            ),
+            benchmark_impact="positive" if score >= 0.75 else "neutral",
+            validated_by="self-improve-daemon",
+        )
+        state_engine.compute_system_health()
+    except Exception as exc:
+        log(f"WARNING: state_engine update failed: {exc}")
 
 
 # ---------------------------------------------------------------------------
