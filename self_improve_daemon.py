@@ -190,18 +190,30 @@ def call_state_engine(
     files_audited: int,
     issues_found: int,
     issues_fixed: int,
+    verified: bool,
+    evidence: dict[str, Any],
 ) -> None:
     """Update benchmark/health state through the shared state engine."""
     if state_engine is None:
         return
 
-    benchmark_confirmed = score >= 0.75 and issues_fixed >= 0
+    benchmark_confirmed = verified and score >= 0.6
     try:
         state_engine.log_benchmark(
             score=score,
             task_name=task_name,
             benchmark_confirmed=benchmark_confirmed,
             domain="self-improve-daemon",
+            evidence=evidence,
+        )
+        state_engine.log_verification(
+            coverage=float(evidence.get("coverage", 0.0) or 0.0),
+            error_catch=1.0 if evidence.get("parseable_result", False) else 0.0,
+            hallucination_catch=1.0 if evidence.get("verified", False) else 0.0,
+            contradiction_catch=1.0 if benchmark_confirmed else 0.0,
+            adversarial_review=bool(evidence.get("changed_files")),
+            overconfidence=bool(score >= 0.75 and not benchmark_confirmed),
+            underconfidence=bool(benchmark_confirmed and score < 0.5),
         )
         state_engine.log_changelog_entry(
             "self-improve",
@@ -220,6 +232,108 @@ def call_state_engine(
 # ---------------------------------------------------------------------------
 # Claude Code invocation
 # ---------------------------------------------------------------------------
+
+def _git_changed_files() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(REPO_DIR), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
+        )
+    except Exception:
+        return []
+
+    changed: list[str] = []
+    for line in result.stdout.splitlines():
+        if len(line) >= 4:
+            path = line[3:].strip()
+            if path:
+                changed.append(path)
+    return changed
+
+
+def _verify_python_files(paths: list[str]) -> tuple[bool, list[str]]:
+    python_files = [path for path in paths if path.lower().endswith(".py")]
+    if not python_files:
+        return True, []
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "py_compile", *python_files],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+            cwd=str(REPO_DIR),
+            check=False,
+        )
+    except Exception as exc:
+        return False, [str(exc)]
+
+    if result.returncode != 0:
+        output = (result.stdout + "\n" + result.stderr).strip()
+        return False, [output or "py_compile failed"]
+    return True, []
+
+
+def _build_local_verification(
+    cycle: int,
+    files: list[str],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    changed_files = _git_changed_files()
+    python_compile_ok, python_compile_errors = _verify_python_files(changed_files)
+    parseable_result = (
+        isinstance(result, dict)
+        and isinstance(result.get("cycle"), int)
+        and "score" in result
+        and result.get("error") is None
+    )
+    required_fields_present = all(
+        key in result for key in ("files_audited", "issues_found", "issues_fixed")
+    )
+    changed_files_detected = bool(changed_files)
+    issues_found = int(result.get("issues_found", 0) or 0)
+    issues_fixed = int(result.get("issues_fixed", 0) or 0)
+
+    checks = {
+        "parseable_result": 1.0 if parseable_result else 0.0,
+        "required_fields": 1.0 if required_fields_present else 0.0,
+        "changed_files": 1.0 if changed_files_detected else 0.0,
+        "python_compile_ok": 1.0 if python_compile_ok else 0.0,
+        "issues_reported_consistent": (
+            1.0 if issues_found >= 0 and issues_fixed >= 0 else 0.0
+        ),
+    }
+    total_checks = len(checks)
+    coverage = sum(checks.values()) / total_checks if total_checks else 0.0
+    verified = parseable_result and python_compile_ok and changed_files_detected
+    benchmark_confirmed = verified and coverage >= 0.6
+    reported_score = float(result.get("score", 0.0) or 0.0)
+    score = round(
+        min(1.0, (0.75 * coverage) + (0.25 * reported_score if verified else 0.0)),
+        2,
+    )
+
+    return {
+        "cycle": cycle,
+        "files_requested": files,
+        "changed_files": changed_files,
+        "python_compile_ok": python_compile_ok,
+        "python_compile_errors": python_compile_errors,
+        "parseable_result": parseable_result,
+        "required_fields_present": required_fields_present,
+        "coverage": round(coverage, 2),
+        "verified": verified,
+        "benchmark_confirmed": benchmark_confirmed,
+        "score": score,
+        "issues_found": issues_found,
+        "issues_fixed": issues_fixed,
+    }
+
 
 CLAUDE_PROMPT = """You are the MiniMax self-improvement daemon. Run one self-audit cycle on the files listed below. Do NOT loop internally. Complete the cycle and output a JSON summary.
 
@@ -330,14 +444,14 @@ def run_claude_cycle(cycle: int, files: list[str]) -> dict:
         except json.JSONDecodeError:
             log(f"CYCLE {cycle}: Could not parse JSON from output")
 
-    log(f"CYCLE {cycle}: No parseable result — treating as silent success")
     return {
         "cycle": cycle,
+        "error": "no parseable result",
         "files_audited": files,
         "issues_found": 0,
         "issues_fixed": 0,
-        "score": 0.5,
-        "stopped_early": False,
+        "score": 0.0,
+        "stopped_early": True,
     }
 
 
@@ -394,11 +508,18 @@ def main() -> None:
         # Run cycle
         result = run_claude_cycle(cycle, files)
 
-        # Update state
-        score = result.get("score", 0.5)
+        verification = _build_local_verification(cycle, files, result)
+        score = verification["score"]
         files_audited = result.get("files_audited", files)
-        issues_found = result.get("issues_found", 0)
-        issues_fixed = result.get("issues_fixed", 0)
+        issues_found = verification["issues_found"]
+        issues_fixed = verification["issues_fixed"]
+
+        if not verification["verified"]:
+            log(
+                f"WARNING: cycle {cycle} verification is speculative "
+                f"(changed_files={len(verification['changed_files'])}, "
+                f"py_compile_ok={verification['python_compile_ok']})"
+            )
 
         call_state_engine(
             score,
@@ -406,6 +527,8 @@ def main() -> None:
             len(files_audited),
             issues_found,
             issues_fixed,
+            verification["verified"],
+            verification,
         )
 
         emit_event(
@@ -416,6 +539,7 @@ def main() -> None:
                 "issues_resolved": issues_fixed,
                 "session_tokens": result.get("tokens_used_estimate", 0),
                 "cycle": cycle,
+                "verification": verification,
             },
         )
 
@@ -425,7 +549,8 @@ def main() -> None:
         wait = 3600 if stopped_early else CYCLE_MINUTES * 60
         next_ts = datetime.now().strftime("%H:%M")
         log(
-            f"CYCLE {cycle} done — issues_found={issues_found} fixed={issues_fixed} score={score}"
+            f"CYCLE {cycle} done — issues_found={issues_found} fixed={issues_fixed} "
+            f"score={score} verified={verification['verified']}"
         )
         log(f"Next cycle in {wait // 60} min at ~{next_ts}")
         log(f"Total runs so far: {total_loops}")

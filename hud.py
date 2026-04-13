@@ -375,6 +375,11 @@ def _build_top_zone(state: dict) -> Panel:
     confidence: str = bench.get("improvement_confidence", "low")
     trend: list[float] = bench.get("improvement_trend", [])
     freshness: int = bench.get("benchmark_freshness_seconds", 0)
+    verified_runs: int = bench.get("verified_runs", 0)
+    speculative_runs: int = bench.get("speculative_runs", 0)
+    benchmark_ratio: float = bench.get(
+        "benchmark_confirmed_vs_speculative_ratio", 0.0
+    )
 
     conf_color = CONFidence_COLORS.get(confidence, "dim")
     delta_str = f"+{delta:.2f}" if delta >= 0 else f"{delta:.2f}"
@@ -411,6 +416,14 @@ def _build_top_zone(state: dict) -> Panel:
         + Text(
             f"[{conf_badge_style}]{confidence_label}[/{conf_badge_style}]",
             style=conf_color,
+        )
+    )
+    inner.add_row(
+        Text(
+            f"Verified: {verified_runs}    "
+            f"Speculative: {speculative_runs}    "
+            f"Ratio: {benchmark_ratio * 100:.0f}%",
+            style="dim",
         )
     )
     inner.add_row(Text("Trend (last 10): ", style="dim") + trend_bar)
@@ -700,6 +713,9 @@ def _build_system_health_panel(state: dict) -> Panel:
     prompt_health: str = health.get("prompt_health", "—")
     regression_risk: float = health.get("regression_risk", 0.0)
     token_budget_pct: float = health.get("token_budget_pct", 0.0)
+    benchmark_ratio: float = health.get(
+        "benchmark_confirmed_vs_speculative_ratio", 0.0
+    )
 
     state_color = _overall_state_color(overall_state)
 
@@ -718,6 +734,7 @@ def _build_system_health_panel(state: dict) -> Panel:
     t.add_row("Prompt health", prompt_health)
     t.add_row("Regression risk", f"{regression_risk * 100:.0f}%")
     t.add_row("Request budget", f"{token_budget_pct:.0f}%  {token_bar}")
+    t.add_row("Bench ratio", f"{benchmark_ratio * 100:.0f}% verified")
 
     return Panel(
         t,

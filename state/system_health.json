@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-04-13T17:02:51.218991+00:00",
+  "last_updated": "2026-04-13T17:16:29.716015+00:00",
   "prompt_health": "stable",
   "rule_count": 8,
   "memory_quality": 0.0,
@@ -7,5 +7,6 @@
   "regression_risk": 0.0,
   "overall_state": "benchmark-confirmed",
   "token_budget_pct": 0.04,
-  "session_count_today": 3
+  "session_count_today": 3,
+  "benchmark_confirmed_vs_speculative_ratio": 1.0
 }

@@ -198,6 +198,7 @@ def log_benchmark(
     task_name: str,
     benchmark_confirmed: bool,
     domain: str,
+    evidence: dict[str, Any] | None = None,
 ) -> None:
     """
     Record a benchmark result in benchmark_state.json.
@@ -210,9 +211,11 @@ def log_benchmark(
         task_name:          Human-readable name of the benchmark task.
         benchmark_confirmed: Whether this is a confirmed (not speculative) benchmark.
         domain:             Domain area (e.g. "code-fix", "routing").
+        evidence:           Optional machine-verifiable evidence for the run.
     """
     state = read_state(_BENCHMARK_FILE)
     WINDOW = 10
+    evidence = evidence or {}
 
     prev_avg = state.get("rolling_average", 0.0)
     prev_score = state.get("current_score", 0.0)
@@ -248,6 +251,16 @@ def log_benchmark(
     else:
         confidence = "low"
 
+    verified_runs = state.get("verified_runs", 0)
+    speculative_runs = state.get("speculative_runs", 0)
+    if benchmark_confirmed:
+        verified_runs += 1
+    else:
+        speculative_runs += 1
+
+    total_runs = verified_runs + speculative_runs
+    benchmark_ratio = verified_runs / total_runs if total_runs > 0 else 0.0
+
     state.update(
         {
             "last_updated": _now_iso(),
@@ -271,10 +284,10 @@ def log_benchmark(
                 else state.get("weakest_domain", "")
             ),
             "benchmark_freshness_seconds": 0,
-            "benchmark_confirmed_vs_speculative_ratio": (
-                state.get("tasks_run", 0)
-                / max(state.get("tasks_run", 0) + (0 if benchmark_confirmed else 1), 1)
-            ),
+            "verified_runs": verified_runs,
+            "speculative_runs": speculative_runs,
+            "benchmark_confirmed_vs_speculative_ratio": round(benchmark_ratio, 4),
+            "benchmark_evidence": evidence,
         }
     )
     write_state(_BENCHMARK_FILE, state)
@@ -549,6 +562,7 @@ def compute_system_health(
     )
     delta = benchmark.get("delta", 0.0)
     improvement_confidence = benchmark.get("improvement_confidence", "low")
+    benchmark_ratio = benchmark.get("benchmark_confirmed_vs_speculative_ratio", 0.0)
     verification_coverage = verification.get("verification_coverage", 0.0)
     memory_quality_val = memory.get("usefulness_score", 0.0)
     total_calls = routing.get("claude_calls", 0) + routing.get("minimax_calls", 0)
@@ -615,6 +629,7 @@ def compute_system_health(
         "overall_state": overall_state,
         "token_budget_pct": round(token_budget, 2),
         "session_count_today": sessions_today,
+        "benchmark_confirmed_vs_speculative_ratio": benchmark_ratio,
     }
     write_state(_SYSTEM_HEALTH_FILE, result)
     return result
