@@ -14,6 +14,7 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -32,6 +33,63 @@ from rich.text import Text
 
 sys.path.insert(0, str(Path.home()))
 from state_engine import get_all_state  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Token log constants
+# ---------------------------------------------------------------------------
+
+TOKEN_LOG_PATH = Path.home() / ".claude" / "skills" / "_token_log.md"
+MINIMAX_BUDGET = 15_000  # tokens per 5-hour window
+TOKEN_WARN_50 = 0.50
+TOKEN_WARN_75 = 0.75
+TOKEN_WARN_90 = 0.90
+
+
+def _read_token_log() -> dict:
+    """
+    Read _token_log.md and extract session token totals.
+
+    Returns:
+        current_session_tokens: tokens from most recent session
+        running_total: sum of all logged session tokens
+        session_count: number of sessions logged today
+        pct_budget: running_total / MINIMAX_BUDGET as float
+    """
+    if not TOKEN_LOG_PATH.exists():
+        return {
+            "current_session_tokens": 0,
+            "running_total": 0,
+            "session_count": 0,
+            "pct_budget": 0.0,
+        }
+
+    try:
+        content = TOKEN_LOG_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return {
+            "current_session_tokens": 0,
+            "running_total": 0,
+            "session_count": 0,
+            "pct_budget": 0.0,
+        }
+
+    # Parse markdown tables for "Total: ~NNNk tokens"
+    total_tokens: int = 0
+    session_count: int = 0
+    for line in content.splitlines():
+        m = re.search(r"Total:\s*~?(\d+)k", line, re.IGNORECASE)
+        if m:
+            total_tokens += int(m.group(1)) * 1_000
+            session_count += 1
+
+    pct = total_tokens / MINIMAX_BUDGET if MINIMAX_BUDGET > 0 else 0.0
+    return {
+        "current_session_tokens": total_tokens,  # last session is lumped in
+        "running_total": total_tokens,
+        "session_count": session_count,
+        "pct_budget": min(pct, 1.0),
+    }
+
 
 # ---------------------------------------------------------------------------
 # Bootstrap stdout to UTF-8 (Windows CP console defaults to cp1252,
@@ -569,6 +627,49 @@ def _build_system_health_panel(state: dict) -> Panel:
     )
 
 
+def _build_token_bar() -> Text:
+    """
+    Top-strip token budget bar.
+    Shows: plan label | token usage bar | pct | warnings at 50/75/90%.
+    """
+    info = _read_token_log()
+    pct = info["pct_budget"]
+    used = info["running_total"]
+    sessions = info["session_count"]
+
+    # Colour based on thresholds
+    if pct >= TOKEN_WARN_90:
+        bar_color = "red bold"
+        warn = "  [!!] CRITICAL — near limit"
+    elif pct >= TOKEN_WARN_75:
+        bar_color = "yellow bold"
+        warn = "  [!] 75%+ used"
+    elif pct >= TOKEN_WARN_50:
+        bar_color = "yellow"
+        warn = "  [~] 50%+ used"
+    else:
+        bar_color = "green"
+        warn = ""
+
+    # Filled bar (20 chars wide)
+    width = 20
+    filled = min(int(width * pct), width)
+    bar = Text()
+    bar.append("▓" * filled, style=bar_color)
+    bar.append("░" * (width - filled), style="dim")
+    bar.append(f"  {pct * 100:.1f}%", style=bar_color)
+
+    result = Text()
+    result.append("MAX  ", style="bold deep_pink3")
+    result.append("│  TOKENS ", style="dim")
+    result.append(bar)
+    result.append(f"  ({used:,} / {MINIMAX_BUDGET:,})", style="dim")
+    result.append(f"  ·  {sessions} sessions", style="dim")
+    if warn:
+        result.append(warn, style=bar_color)
+    return result
+
+
 def _build_bottom_zone(state: dict) -> Table:
     """BOTTOM ZONE (20%) — Three equal columns."""
     left = _build_changelog_panel(state)
@@ -584,7 +685,7 @@ def _build_bottom_zone(state: dict) -> Table:
 
 
 def _build_header(state: dict) -> Panel:
-    """Header bar: timestamp + overall_state."""
+    """Header: top bar with title/timestamp/overall_state + token strip below."""
     health = state.get("system_health", {})
     overall_state: str = health.get("overall_state", "—")
     state_color = _overall_state_color(overall_state)
@@ -598,8 +699,15 @@ def _build_header(state: dict) -> Panel:
         f"[{state_color}]{overall_state}[/{state_color}]", style=state_color
     )
 
+    token_strip = _build_token_bar()
+
+    inner = Table(box=None, show_header=False, padding=(0, 1))
+    inner.add_column()
+    inner.add_row(header_text)
+    inner.add_row(token_strip)
+
     return Panel(
-        header_text,
+        inner,
         style="bold white on black",
         border_style="black",
         padding=(0, 1),
