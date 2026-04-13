@@ -26,16 +26,16 @@ Built over sessions on 2026-04-12/13. System is self-improving via the learnings
 - `agent-stockpile-manager` — benchmark + optimize stockpile
 
 ## Token Budget
-- **MiniMax M2.7 on 10x Starter: 800 model REQUESTS / 5 hours** (NOT tokens!)
-- Old 15,000 token estimate was wrong — real cap is prompt count
+- **MiniMax M2.7 on 10x Starter: 15,000 model REQUESTS / 5 hours** (NOT tokens!)
+- Old 15,000 token estimate was wrong — real cap is request count
 - MiniMax throughput: ~50 TPS normal, ~100 TPS off-peak
-- Target: 50-90% per session (400-720 requests)
-- MiniMax dashboard confirmed: 0/800 after heavy use
+- Target: 50-90% per session (7,500-13,500 requests)
+- The "0/800" in the dashboard was USAGE so far, not the limit
 
 ## Background Loops (running now)
 - `self_improve_daemon.py` via pythonw3.12.exe (PID 36240)
 - Cron job bbc8a129: every 30 minutes via claude --print
-- Cycle counter: 8+ cycles completed
+- Cycle counter: 9+ cycles completed
 
 ## Session Log (from .jsonl history)
 
