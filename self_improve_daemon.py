@@ -32,11 +32,11 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 CYCLE_MINUTES = 30
-# MiniMax M2.7 10x Starter: 800 model REQUESTS / 5 hours
+# MiniMax M2.7 10x Starter: 15,000 model REQUESTS / 5 hours
 # This is a REQUEST count limit, NOT a token limit
-REQUEST_BUDGET = 800
-REQUEST_WARN = 600  # 75%
-REQUEST_CRITICAL = 720  # 90%
+REQUEST_BUDGET = 15_000
+REQUEST_WARN = 11_250  # 75%
+REQUEST_CRITICAL = 13_500  # 90%
 STOP_FILE = Path.home() / ".claude" / "state" / "SELF_IMPROVE_STOP"
 STATE_DIR = Path.home() / ".claude" / "state"
 EVENT_LOG = STATE_DIR / "event_log.jsonl"
@@ -83,7 +83,7 @@ def read_token_total() -> int:
 def check_budget() -> tuple[bool, str]:
     """Returns (ok, reason). ok=False means stop.
 
-    NOTE: MiniMax M2.7 10x Starter = 800 requests/5h. The token log tracks
+    NOTE: MiniMax M2.7 10x Starter = 15,000 requests/5h. The token log tracks
     estimated tokens for efficiency monitoring — it is NOT the budget limiter.
     The real limit is MiniMax API request count (not tracked here).
     """

@@ -81,10 +81,10 @@ For any coding/design/planning task:
 
 ## Token Budget
 
-- **MiniMax M2.7 on 10x Starter: 800 model requests / 5 hours** (NOT tokens)
-- Old 15,000 token estimate was wrong — the real cap is prompt count
-- Target: 50-90% per session (400-720 requests)
-- Warn at: 50%, 75%, 90% of 800
+- **MiniMax M2.7 on 10x Starter: 15,000 model requests / 5 hours** (NOT tokens)
+- Old 15,000 token estimate was wrong — the real cap is REQUEST count
+- Target: 50-90% per session (7,500–13,500 requests)
+- Warn at: 50%, 75%, 90% of 15,000
 - MiniMax throughput: ~50 TPS normal, 100 TPS off-peak
 
 ## Meta-System

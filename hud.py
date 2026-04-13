@@ -677,7 +677,7 @@ def _build_token_bar() -> Text:
     result.append(
         f"  ·  ~{efficiency_tokens // 1000:,}k efficiency tokens est.", style="dim"
     )
-    result.append("  ·  800 req/5h (MiniMax tracked)", style="dim")
+    result.append("  ·  15k req/5h (MiniMax tracked)", style="dim")
     return result
 
 
