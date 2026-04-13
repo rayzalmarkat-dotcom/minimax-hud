@@ -26,9 +26,16 @@ Built over sessions on 2026-04-12/13. System is self-improving via the learnings
 - `agent-stockpile-manager` — benchmark + optimize stockpile
 
 ## Token Budget
-- Daily: 15,000 tokens / 5 hours
-- Target: 50-90% per session
-- Warn at: 50%, 75%, 90%
+- **MiniMax M2.7 on 10x Starter: 800 model REQUESTS / 5 hours** (NOT tokens!)
+- Old 15,000 token estimate was wrong — real cap is prompt count
+- MiniMax throughput: ~50 TPS normal, ~100 TPS off-peak
+- Target: 50-90% per session (400-720 requests)
+- MiniMax dashboard confirmed: 0/800 after heavy use
+
+## Background Loops (running now)
+- `self_improve_daemon.py` via pythonw3.12.exe (PID 36240)
+- Cron job bbc8a129: every 30 minutes via claude --print
+- Cycle counter: 8+ cycles completed
 
 ## Session Log (from .jsonl history)
 
@@ -58,6 +65,16 @@ Built over sessions on 2026-04-12/13. System is self-improving via the learnings
 ### Session 6 (ea6306a8, 144 lines) — 2026-04-13 (current/last)
 - User lost chat, recovered. Session history preserved in .jsonl files.
 
+### Session 7 (ea6306a8 continued, 2026-04-13 08:00) — Major fixes
+- Fixed multi-terminal SessionStart loop: PID lock file in hud.py + hook now checks before spawning
+- Uncapped token budget: updated all files to use real 800 req/5h MiniMax limit (was wrongly 15k tokens)
+- Updated: CLAUDE.md, _token_log.md, hud.py strip, self_improve_daemon.py, token-budget-agent.md
+- Extracted patterns from superpowers plugin (systematic-debugging, verification-before-completion)
+- Added 3 new anti-patterns to _learnings.md
+- Added auto-creation trigger rules to _stockpile.md
+- Background loop verified: daemon running (PID 36240), cron job active, cycle counter at 8
+- Killed duplicate daemon (PID 38188)
+
 ## UNRESOLVED: The Terminal/HUD Project
 
 In sessions 3/4 (fe56838c), user discussed building:
@@ -83,6 +100,9 @@ Need from user: the directory path for the terminal/HUD project.
 6. Always extract learnings after every session
 7. Verify file syntax (py_compile) after agent edits
 8. Never skip post-task loop (budget → learnings → benchmark)
+9. Never propose fix before root cause (systematic-debugging iron law)
+10. Never claim "fixed" without fresh verification evidence
+11. Never trust agent success reports without evidence
 
 ## What Was Lost
 - Project memory was empty (wiped 2026-04-13 00:06)

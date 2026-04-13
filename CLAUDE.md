@@ -1,10 +1,11 @@
-# C--Users-Charlie — MiniMax Agent Orchestration System
+# MiniMax Agent System — Opus Orchestrated
 
 ## Core Architecture
 
 **Opus Max** (claude-opus-4-7-20251120) is the orchestrator.
 **MiniMax 2.7** agents do all execution.
-Sonnet is NOT used for orchestration.
+
+Opus holds the full context: stockpile, learnings, agent specs, rules, project state — all simultaneously. MiniMax executes the work. Sonnet is no longer used for orchestration.
 
 ## Operating Modes
 
@@ -14,87 +15,85 @@ Opus Max receives request → reads _learnings.md + _stockpile.md → pre-reads 
 ### MiniMax Bystander Mode
 MiniMax agents work directly → report to Opus → Opus steps aside for simple one-shots
 
-## Pre-Task Checklist (MUST RUN EVERY TIME)
+## Decision Tree
 
-1. Read `C:\Users\Charlie\.claude\skills\_learnings.md` — apply learnings, never repeat mistakes
-2. Read `C:\Users\Charlie\.claude\skills\_token_log.md` — check budget, warn at 50/75/90%
-3. Read `C:\Users\Charlie\.claude\agents\_stockpile.md` — know who your agents are
+```
+Is this a simple task? (single file, one fix)
+  → YES → Spawn MiniMax agent directly, report back
+
+Is this multi-step / multi-file / complex?
+  → YES → Opus orchestrates: read learnings → pre-read files → dispatch → synthesize → learn
+
+Is this a planning / architecture decision?
+  → YES → Opus thinks, may spawn MiniMax for research
+```
+
+## Pre-Task Checklist (Opus runs every time)
+
+Before ANY task:
+1. Read C:\Users\Charlie\.claude\skills\_learnings.md — apply learnings, never repeat mistakes
+2. Read C:\Users\Charlie\.claude\skills\_token_log.md — check budget, warn at 50/75/90%
+3. Read C:\Users\Charlie\.claude\agents\_stockpile.md — know who your agents are
 4. Pre-read files ONCE — paste to agents, never let them re-read
 
-## Post-Task Loop (MUST RUN AFTER EVERY TASK)
+## Post-Task Loop (runs after EVERY task automatically)
 
 1. token-budget-agent logs session to _token_log.md
-2. learning-agent extracts 3-5 new learnings → _learnings.md
+2. learning-agent extracts 3-5 learnings → _learnings.md
 3. agent-stockpile-manager benchmarks agents → _stockpile.md
-4. Update MEMORY.md with: what was built, directory paths, next steps
 
-## Core Rules
+## MiniMax Agent Discipline
 
-| Rule | Why |
-|------|-----|
-| Pre-read once, paste to agents | 20k file × 12 re-reads = 240k wasted tokens |
-| 1 agent per file, never 2 on same file | Prevents merge conflicts |
-| Max 5 simultaneous agents | Beyond this, overhead exceeds benefit |
-| Always log session metrics | Enables self-improvement |
-| Always extract learnings | Every session makes next smarter |
+**RULE 1: Pre-read once, paste to agents.**
+Read each file exactly once. Paste content into agent prompts. No re-reads.
+
+**RULE 2: One agent per file.**
+Never spawn two agents on the same file. Group all issues into one agent.
+
+**RULE 3: Group by file, not by issue.**
+1 agent × 10 fixes in 1 file > 10 agents × 1 fix each. Target: 2-5 agents per project.
+
+**RULE 4: Opus orchestrates. MiniMax executes.**
+Research, synthesis, planning = Opus. Code, fixes, reviews = MiniMax agents.
+
+**RULE 5: Log every session.**
+_token_log.md + _learnings.md + _stockpile.md all updated after every task.
+
+## Skill Load Order
+
+For any coding/design/planning task:
+1. _learnings.md (apply past learnings)
+2. _token_log.md (check budget)
+3. _stockpile.md (know active agents)
+4. minimax-dev-workflow (dispatch workflow)
+5. skill-builder (if building new skills)
+
+## Specialist Agents
+
+| Agent | Role |
+|-------|------|
+| code-fix-agent | Fix all issues in one file |
+| code-review-agent | Rubric-scored review (CRITICAL → LOW) |
+| learning-agent | Session retrospectives → _learnings.md |
+| token-budget-agent | Budget tracking → _token_log.md |
+| git-commit-agent | Conventional commits → push to GitHub |
+| agent-stockpile-manager | Benchmark + optimize stockpile → _stockpile.md |
 
 ## Token Budget
 
-- Daily: 15,000 tokens / 5 hours
-- Target: 50-90% per session
-- Warn at: 50%, 75%, 90%
+- **MiniMax M2.7 on 10x Starter: 800 model requests / 5 hours** (NOT tokens)
+- Old 15,000 token estimate was wrong — the real cap is prompt count
+- Target: 50-90% per session (400-720 requests)
+- Warn at: 50%, 75%, 90% of 800
+- MiniMax throughput: ~50 TPS normal, 100 TPS off-peak
 
-## Active Specialist Agents
+## Meta-System
 
-| Agent | File | Role |
-|-------|------|------|
-| code-fix-agent | .claude/agents/code-fix-agent.md | Fix all issues in one file |
-| code-review-agent | .claude/agents/code-review-agent.md | Rubric-scored review |
-| learning-agent | .claude/agents/learning-agent.md | Session retrospectives |
-| token-budget-agent | .claude/agents/token-budget-agent.md | Budget tracking |
-| git-commit-agent | .claude/agents/git-commit-agent.md | Conventional commits |
-| agent-stockpile-manager | .claude/agents/agent-stockpile-manager.md | Stockpile optimization |
+Opus is learning. Every session makes the next one better:
+- _learnings.md grows (mistakes + techniques)
+- _stockpile.md quality-rates agents
+- _token_log.md tracks burn rate
 
-## Critical File Locations
+## End Every Response With
 
-| File | Purpose | Location |
-|------|---------|----------|
-| _learnings.md | All session learnings | `C:\Users\Charlie\.claude\skills\_learnings.md` |
-| _token_log.md | Token burn tracking | `C:\Users\Charlie\.claude\skills\_token_log.md` |
-| _stockpile.md | Agent inventory | `C:\Users\Charlie\.claude\agents\_stockpile.md` |
-| MEMORY.md | Project state | `.claude/projects/C--Users-Charlie/memory/MEMORY.md` |
-| minimax-workflow-optimizer | Self-improving loop skill | `C:\Users\Charlie\.claude\skills\minimax-workflow-optimizer.md` |
-| inherited-cuddling-blanket.md | Full system plan | `C:\Users\Charlie\.claude\plans\inherited-cuddling-blanket.md` |
-
-## Anti-Patterns (NEVER DO)
-
-- ❌ Never spawn more than 5 simultaneous agents
-- ❌ Never have 2 agents edit the same file
-- ❌ Never let agents re-read files already read (pre-read-once is MANDATORY)
-- ❌ Never skip post-task logging to _token_log.md
-- ❌ Never skip learning extraction after session
-- ❌ Never build without updating MEMORY.md with directory paths
-- ❌ Never skip py_compile verification after agent edits
-
-## Git Workflow
-
-Commit format: `<type>: <description>`
-Types: feat, fix, refactor, docs, test, chore, perf, ci
-
-Commit after every significant task. Push regularly.
-
-## Metaswarm Integration
-
-This project is metaswarm-enabled. Use:
-- `/metaswarm:start` — beginning any tracked task
-- `/metaswarm:setup` — (done) configure project
-- `/metaswarm:status` — check current state
-- `/metaswarm:plan-review-gate` — after planning
-- `/metaswarm:design-review-gate` — after design decisions
-- `/metaswarm:pr-shepherd` — before commit
-
-## Session Recovery
-
-If session crashes: all conversations saved in `.jsonl` files in project root.
-Recover by reading the most recent `.jsonl` file.
-Git repo: `C:\Users\Charlie\.claude\projects\C--Users-Charlie\.git`
+**Next:** [1-3 relevant skills/agents]. Skip if purely administrative.

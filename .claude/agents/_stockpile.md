@@ -42,6 +42,22 @@ None yet.
 - No agent for session recovery from .jsonl → identified, candidate for creation
 - No pre-read-once enforcement in agent prompts → learning from big session
 
+## Patterns Stolen from Superpowers Plugin (2026-04-13)
+
+1. **systematic-debugging**: "NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST" — 4-phase process (gather evidence, form hypothesis, test fix, verify). Agents should NEVER propose fixes without completing root cause investigation.
+2. **verification-before-completion**: "Evidence before claims" — Must run verification commands and show actual output before claiming "tests pass" or "bug fixed". No trusting agent success reports.
+3. **writing-skills**: TDD for skills — RED-GREEN-REFACTOR applied to skill creation (watch agent fail without skill → write skill → verify compliance).
+
+## Auto-Creation Trigger Rules (from agent-stockpile-manager.md update)
+
+Spawn NEW specialist agent when:
+- Same type of task recurs 3+ times without existing agent covering it
+- Systematic debugging finds a recurring root cause pattern → draft prevention agent
+- Verification-before-completion repeatedly catches the same class of failure → draft prevention agent
+- A skill is invoked that could be replaced by an automated agent
+
+Do NOT create agent for one-off tasks.
+
 ## Post-Session Benchmark (2026-04-13 recovery)
 
 All agents were used in the 2026-04-12 session but spawned without pre-read-once.

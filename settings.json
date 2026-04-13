@@ -1,0 +1,169 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "LOCK=\"$HOME/.claude/state/hud_running.lock\"; if [ -f \"$LOCK\" ]; then PID=$(cat \"$LOCK\" 2>/dev/null); if [ -n \"$PID\" ] && kill -0 \"$PID\" 2>/dev/null; then exit 0; fi; fi; start \"\" python \"$HOME/.claude/hud.py\"",
+            "shell": "bash",
+            "async": false,
+            "statusMessage": "Checking HUD status..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import json,sys,subprocess; d=json.load(sys.stdin); f=d.get('tool_input',{}).get('file_path','') or d.get('tool_response',{}).get('filePath',''); f.endswith('.py') and subprocess.run(['python','-m','black',f],capture_output=True)\"",
+            "statusMessage": "Formatting Python..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"MANDATORY AGENT CHECK: Before responding to any coding/design/planning task, consult agents.md. For planning: use code-architect FIRST. For code just written: use code-reviewer + python-expert in parallel. For Flask routes: use api-security-audit. For bugs: use debugger. For UI changes: use ui-designer + accessibility-specialist. Skipping agents is never acceptable.\"}}'",
+            "shell": "bash"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "code-to-prd@claude-code-skills": true,
+    "frontend-design-pro@buildwithclaude": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "backend-architect@awesome-claude-code-plugins": true,
+    "agents-design-experience@buildwithclaude": true,
+    "voltagent-core-dev@voltagent-subagents": true,
+    "agents-development-architecture@buildwithclaude": true,
+    "claude-api@anthropic-agent-skills": true,
+    "code-review@awesome-claude-code-plugins": true,
+    "engineering-skills@claude-code-skills": true,
+    "superpowers@superpowers-dev": true,
+    "frontend-design@claude-code-plugins": true,
+    "ui-designer@awesome-claude-code-plugins": true,
+    "ux-strategy@designer-skills": true,
+    "ui-design@designer-skills": true,
+    "interaction-design@designer-skills": true,
+    "agents-language-specialists@buildwithclaude": true,
+    "python-expert@awesome-claude-code-plugins": true,
+    "agents-quality-security@buildwithclaude": true,
+    "web-dev@awesome-claude-code-plugins": true,
+    "code-architect@awesome-claude-code-plugins": true,
+    "codex@openai-codex": true,
+    "metaswarm@metaswarm-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "everything-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/everything-claude-code"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "ecc": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/everything-claude-code"
+      }
+    },
+    "superpowers-dev": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers"
+      }
+    },
+    "prompts.chat": {
+      "source": {
+        "source": "github",
+        "repo": "f/prompts.chat"
+      }
+    },
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    },
+    "claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-code"
+      }
+    },
+    "voltagent-subagents": {
+      "source": {
+        "source": "github",
+        "repo": "VoltAgent/awesome-claude-code-subagents"
+      }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    },
+    "claude-code-skills": {
+      "source": {
+        "source": "github",
+        "repo": "alirezarezvani/claude-skills"
+      }
+    },
+    "buildwithclaude": {
+      "source": {
+        "source": "github",
+        "repo": "davepoon/buildwithclaude"
+      }
+    },
+    "awesome-claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "ccplugins/awesome-claude-code-plugins"
+      }
+    },
+    "cc-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "ananddtyagi/cc-marketplace"
+      }
+    },
+    "designer-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Owl-Listener/designer-skills"
+      }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
+    },
+    "metaswarm-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "dsifry/metaswarm-marketplace"
+      }
+    }
+  },
+  "effortLevel": "high",
+  "autoUpdatesChannel": "latest",
+  "skipDangerousModePermissionPrompt": true
+}

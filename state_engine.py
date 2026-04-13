@@ -622,8 +622,6 @@ def get_all_state() -> dict[str, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import os
-
     print(f"STATE_DIR: {STATE_DIR}")
     print(f"STATE_DIR exists: {STATE_DIR.exists()}")
     if STATE_DIR.exists():

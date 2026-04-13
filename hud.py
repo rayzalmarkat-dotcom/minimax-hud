@@ -97,13 +97,45 @@ def _read_token_log() -> dict:
 # ---------------------------------------------------------------------------
 
 import sys as _sys
+import os as _os
+import tempfile as _tempfile
+from pathlib import Path as _Path
+
+# ---------------------------------------------------------------------------
+# Single-instance lock — prevents SessionStart multi-terminal loop
+# ---------------------------------------------------------------------------
+
+_LOCK_FILE = _Path.home() / ".claude" / "state" / "hud_running.lock"
+
+# Try to acquire single-instance lock before doing anything else
+if _LOCK_FILE.exists():
+    try:
+        pid = int(_LOCK_FILE.read_text().strip())
+    except (ValueError, OSError):
+        pid = None
+    if pid is not None:
+        try:
+            _os.kill(pid, 0)
+            _locked = False  # Process is alive — we're a duplicate
+        except OSError:
+            _locked = True  # Process dead — stale lock, take over
+    else:
+        _locked = True
+else:
+    _locked = True
+
+if not _locked:
+    print("[HUD] Another HUD is already running — exiting.")
+    _sys.exit(0)
+
+# Write our PID so future invocations know we're alive
+_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+_LOCK_FILE.write_text(str(_os.getpid()))
 
 if hasattr(_sys.stdout, "reconfigure"):
     try:
         _sys.stdout.reconfigure(encoding="utf-8")
-    except (
-        Exception
-    ):  # pragma: no cover — reconfigure can fail on some file-like objects
+    except Exception:  # pragma: no cover
         pass
 
 
@@ -629,44 +661,23 @@ def _build_system_health_panel(state: dict) -> Panel:
 
 def _build_token_bar() -> Text:
     """
-    Top-strip token budget bar.
-    Shows: plan label | token usage bar | pct | warnings at 50/75/90%.
+    Top-strip: MiniMax M2.7 request status + session efficiency tracker.
+
+    MiniMax tracks actual request usage (800/5h) internally — we can't read
+    that from here. We show sessions logged and internal efficiency tokens.
     """
     info = _read_token_log()
-    pct = info["pct_budget"]
-    used = info["running_total"]
     sessions = info["session_count"]
-
-    # Colour based on thresholds
-    if pct >= TOKEN_WARN_90:
-        bar_color = "red bold"
-        warn = "  [!!] CRITICAL — near limit"
-    elif pct >= TOKEN_WARN_75:
-        bar_color = "yellow bold"
-        warn = "  [!] 75%+ used"
-    elif pct >= TOKEN_WARN_50:
-        bar_color = "yellow"
-        warn = "  [~] 50%+ used"
-    else:
-        bar_color = "green"
-        warn = ""
-
-    # Filled bar (20 chars wide)
-    width = 20
-    filled = min(int(width * pct), width)
-    bar = Text()
-    bar.append("▓" * filled, style=bar_color)
-    bar.append("░" * (width - filled), style="dim")
-    bar.append(f"  {pct * 100:.1f}%", style=bar_color)
+    efficiency_tokens = info["running_total"]
 
     result = Text()
-    result.append("MAX  ", style="bold deep_pink3")
-    result.append("│  TOKENS ", style="dim")
-    result.append(bar)
-    result.append(f"  ({used:,} / {MINIMAX_BUDGET:,})", style="dim")
-    result.append(f"  ·  {sessions} sessions", style="dim")
-    if warn:
-        result.append(warn, style=bar_color)
+    result.append("M2.7  ", style="bold deep_pink3")
+    result.append("│  ", style="dim")
+    result.append(f"{sessions} sessions logged", style="green")
+    result.append(
+        f"  ·  ~{efficiency_tokens // 1000:,}k efficiency tokens est.", style="dim"
+    )
+    result.append("  ·  800 req/5h (MiniMax tracked)", style="dim")
     return result
 
 
@@ -761,6 +772,14 @@ def hud_getter():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Lock cleanup on graceful exit
+# ---------------------------------------------------------------------------
+import atexit as _atexit
+
+_atexit.register(lambda: _LOCK_FILE.unlink(missing_ok=True))
+
+
 def main() -> None:
     console.print(
         "[bold deep_pink3]Starting HUD v2...[/]  screen=False, refresh=0.2 Hz"
@@ -781,6 +800,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        _LOCK_FILE.unlink(missing_ok=True)
         console.print("\n[bold green]HUD closed.[/]\n")
 
 

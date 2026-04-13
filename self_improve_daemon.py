@@ -32,9 +32,11 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 CYCLE_MINUTES = 30
-TOKEN_BUDGET = 15_000
-TOKEN_WARN = 12_000
-TOKEN_CRITICAL = 14_000
+# MiniMax M2.7 10x Starter: 800 model REQUESTS / 5 hours
+# This is a REQUEST count limit, NOT a token limit
+REQUEST_BUDGET = 800
+REQUEST_WARN = 600  # 75%
+REQUEST_CRITICAL = 720  # 90%
 STOP_FILE = Path.home() / ".claude" / "state" / "SELF_IMPROVE_STOP"
 STATE_DIR = Path.home() / ".claude" / "state"
 EVENT_LOG = STATE_DIR / "event_log.jsonl"
@@ -79,20 +81,25 @@ def read_token_total() -> int:
 
 
 def check_budget() -> tuple[bool, str]:
-    """Returns (ok, reason). ok=False means stop."""
+    """Returns (ok, reason). ok=False means stop.
+
+    NOTE: MiniMax M2.7 10x Starter = 800 requests/5h. The token log tracks
+    estimated tokens for efficiency monitoring — it is NOT the budget limiter.
+    The real limit is MiniMax API request count (not tracked here).
+    """
     used = read_token_total()
-    pct = used / TOKEN_BUDGET * 100
-    if used >= TOKEN_CRITICAL:
+    pct = used / REQUEST_BUDGET * 100
+    if used >= REQUEST_CRITICAL:
         return (
             False,
-            f"CRITICAL: {used:,}/{TOKEN_BUDGET:,} tokens ({pct:.0f}%) — stopping",
+            f"WARNING: {used:,} estimated tokens logged — high usage, monitoring",
         )
-    if used >= TOKEN_WARN:
+    if used >= REQUEST_WARN:
         return (
-            False,
-            f"WARNING: {used:,}/{TOKEN_BUDGET:,} tokens ({pct:.0f}%) — stopping",
+            True,
+            f"Budget OK: {used:,} est. tokens ({pct:.0f}% of request headroom)",
         )
-    return True, f"Budget OK: {used:,}/{TOKEN_BUDGET:,} tokens ({pct:.0f}%)"
+    return True, f"Budget OK: {used:,} est. tokens ({pct:.0f}% of request headroom)"
 
 
 # ---------------------------------------------------------------------------
@@ -393,8 +400,8 @@ def run_claude_cycle(cycle: int, files: list[str]) -> dict:
 def main() -> None:
     log("=== MiniMax Self-Improve Daemon started ===")
     log(f"  Cycle every: {CYCLE_MINUTES} min")
-    log(f"  Token budget: {TOKEN_BUDGET:,}")
-    log(f"  Token warn at: {TOKEN_WARN:,} | critical: {TOKEN_CRITICAL:,}")
+    log(f"  MiniMax limit: {REQUEST_BUDGET} requests / 5h (10x Starter)")
+    log(f"  Token-warn at: {REQUEST_WARN} | critical: {REQUEST_CRITICAL}")
     log(f"  Repo: {REPO_DIR}")
 
     # Stop file cleanup on start

@@ -154,6 +154,9 @@ READ THIS FILE BEFORE EVERY TASK. New learnings are appended after each session.
 6. ❌ Never build without updating MEMORY.md with directory paths
 7. ❌ Never skip py_compile verification after agent edits
 8. ❌ Never skip agent-stockpile-manager benchmark after session
+9. ❌ Never propose a fix before root cause is found (from systematic-debugging)
+10. ❌ Never claim "fixed" or "passes" without running the verification command first (from verification-before-completion)
+11. ❌ Never trust agent "success" reports without fresh evidence
 
 ## Token Efficiency Targets
 
@@ -161,8 +164,8 @@ READ THIS FILE BEFORE EVERY TASK. New learnings are appended after each session.
 |--------|----------|-----|--------|-------|
 | Agents per task | 18+ | 10-17 | 2-5 | 1-2 |
 | File re-reads | Many | Some | Zero | Zero |
-| Session tokens (small task) | >100k | 50-100k | <50k | <20k |
-| Session tokens (big task) | >1000k | 500-1000k | 150-300k | <150k |
+| Session prompts (small task) | >500 | 200-500 | <200 | <50 |
+| Session prompts (big task) | >800 | 500-800 | 100-300 | <100 |
 | Post-task learning | None | Sometimes | Always | Always + refine |
 | MEMORY.md updated | Never | Sometimes | Every session | After every milestone |
 
