@@ -35,11 +35,11 @@ sys.path.insert(0, str(Path.home()))
 from state_engine import get_all_state  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Token log constants
+# Request log constants
 # ---------------------------------------------------------------------------
 
 TOKEN_LOG_PATH = Path.home() / ".claude" / "skills" / "_token_log.md"
-MINIMAX_BUDGET = 15_000  # tokens per 5-hour window
+MINIMAX_REQUEST_BUDGET = 15_000  # canonical model requests per 5-hour window
 TOKEN_WARN_50 = 0.50
 TOKEN_WARN_75 = 0.75
 TOKEN_WARN_90 = 0.90
@@ -47,18 +47,19 @@ TOKEN_WARN_90 = 0.90
 
 def _read_token_log() -> dict:
     """
-    Read _token_log.md and extract session token totals.
+    Read _token_log.md and extract tracked request totals plus optional
+    efficiency-token diagnostics.
 
     Returns:
-        current_session_tokens: tokens from most recent session
-        running_total: sum of all logged session tokens
+        tracked_requests: sum of tracked request lines
+        efficiency_tokens: sum of estimated efficiency token totals
         session_count: number of sessions logged today
-        pct_budget: running_total / MINIMAX_BUDGET as float
+        pct_budget: tracked_requests / MINIMAX_REQUEST_BUDGET as float
     """
     if not TOKEN_LOG_PATH.exists():
         return {
-            "current_session_tokens": 0,
-            "running_total": 0,
+            "tracked_requests": 0,
+            "efficiency_tokens": 0,
             "session_count": 0,
             "pct_budget": 0.0,
         }
@@ -67,25 +68,37 @@ def _read_token_log() -> dict:
         content = TOKEN_LOG_PATH.read_text(encoding="utf-8")
     except OSError:
         return {
-            "current_session_tokens": 0,
-            "running_total": 0,
+            "tracked_requests": 0,
+            "efficiency_tokens": 0,
             "session_count": 0,
             "pct_budget": 0.0,
         }
 
-    # Parse markdown tables for "Total: ~NNNk tokens"
-    total_tokens: int = 0
+    tracked_requests: int = 0
+    efficiency_tokens: int = 0
     session_count: int = 0
     for line in content.splitlines():
-        m = re.search(r"Total:\s*~?(\d+)k", line, re.IGNORECASE)
-        if m:
-            total_tokens += int(m.group(1)) * 1_000
+        request_match = re.search(r"Tracked requests:\s*(\d+)", line, re.IGNORECASE)
+        if request_match:
+            tracked_requests += int(request_match.group(1))
             session_count += 1
+        token_match = re.search(r"Total:\s*~?(\d+)k", line, re.IGNORECASE)
+        if token_match:
+            efficiency_tokens += int(token_match.group(1)) * 1_000
+        token_match = re.search(
+            r"Efficiency tokens.*?:\s*~?(\d+)k", line, re.IGNORECASE
+        )
+        if token_match:
+            efficiency_tokens += int(token_match.group(1)) * 1_000
 
-    pct = total_tokens / MINIMAX_BUDGET if MINIMAX_BUDGET > 0 else 0.0
+    pct = (
+        tracked_requests / MINIMAX_REQUEST_BUDGET
+        if MINIMAX_REQUEST_BUDGET > 0
+        else 0.0
+    )
     return {
-        "current_session_tokens": total_tokens,  # last session is lumped in
-        "running_total": total_tokens,
+        "tracked_requests": tracked_requests,
+        "efficiency_tokens": efficiency_tokens,
         "session_count": session_count,
         "pct_budget": min(pct, 1.0),
     }
@@ -96,6 +109,9 @@ def _read_token_log() -> dict:
 # which cannot encode Unicode box-drawing / emoji characters used by the HUD)
 # ---------------------------------------------------------------------------
 
+import sys as _sys
+import os as _os
+import tempfile as _tempfile
 from pathlib import Path as _Path
 
 # ---------------------------------------------------------------------------
@@ -646,7 +662,7 @@ def _build_system_health_panel(state: dict) -> Panel:
     t.add_row("State", Text(state_label, style=state_color))
     t.add_row("Prompt health", prompt_health)
     t.add_row("Regression risk", f"{regression_risk * 100:.0f}%")
-    t.add_row("Token budget", f"{token_budget_pct:.0f}%  {token_bar}")
+    t.add_row("Request budget", f"{token_budget_pct:.0f}%  {token_bar}")
 
     return Panel(
         t,
@@ -660,21 +676,25 @@ def _build_token_bar() -> Text:
     """
     Top-strip: MiniMax M2.7 request status + session efficiency tracker.
 
-    MiniMax tracks actual request usage (800/5h) internally — we can't read
-    that from here. We show sessions logged and internal efficiency tokens.
+    Claude Code does not expose raw MiniMax worker request counts directly to
+    hooks, so we show tracked lower-bound requests from the post-task loop plus
+    optional efficiency-token estimates from the log.
     """
     info = _read_token_log()
     sessions = info["session_count"]
-    efficiency_tokens = info["running_total"]
+    tracked_requests = info["tracked_requests"]
+    efficiency_tokens = info["efficiency_tokens"]
 
     result = Text()
     result.append("M2.7  ", style="bold deep_pink3")
     result.append("│  ", style="dim")
     result.append(f"{sessions} sessions logged", style="green")
-    result.append(
-        f"  ·  ~{efficiency_tokens // 1000:,}k efficiency tokens est.", style="dim"
-    )
-    result.append("  ·  15k req/5h (MiniMax tracked)", style="dim")
+    result.append(f"  ·  {tracked_requests:,} tracked req", style="dim")
+    if efficiency_tokens > 0:
+        result.append(
+            f"  ·  ~{efficiency_tokens // 1000:,}k efficiency tokens", style="dim"
+        )
+    result.append("  ·  15k req/5h canonical", style="dim")
     return result
 
 

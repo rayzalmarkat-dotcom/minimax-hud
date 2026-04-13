@@ -1,11 +1,11 @@
 {
-  "last_updated": "2026-04-13T00:00:00Z",
+  "last_updated": "2026-04-13T16:14:58.110268+00:00",
   "prompt_health": "stable",
   "rule_count": 8,
   "memory_quality": 0.0,
-  "routing_confidence": 0.0,
+  "routing_confidence": 1.0,
   "regression_risk": 0.0,
-  "overall_state": "normal",
-  "token_budget_pct": 0.0,
+  "overall_state": "benchmark-confirmed",
+  "token_budget_pct": 0.01,
   "session_count_today": 1
 }

@@ -10,10 +10,9 @@ You are a token budget analyst. Your job: track burn rate, warn at thresholds, a
 
 ## Budget Context (CORRECTED — 2026-04-13)
 
-- **MiniMax M2.7 on 10x Starter: 800 model REQUESTS per 5-hour window**
+- **MiniMax M2.7 on 10x Starter: 15,000 model REQUESTS per 5-hour window**
 - This is a REQUEST count limit, NOT a token limit
-- Actual usage: ~800 prompts after 5h of heavy use
-- Target usage: 50-90% per session (400–720 requests)
+- Target usage: 50-90% per session (7,500–13,500 requests)
 - Thresholds: 50% (light), 75% (optimal), 90% (critical)
 - MiniMax throughput: ~50 TPS normal, ~100 TPS off-peak
 

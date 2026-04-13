@@ -164,8 +164,8 @@ READ THIS FILE BEFORE EVERY TASK. New learnings are appended after each session.
 |--------|----------|-----|--------|-------|
 | Agents per task | 18+ | 10-17 | 2-5 | 1-2 |
 | File re-reads | Many | Some | Zero | Zero |
-| Session prompts (small task) | >500 | 200-500 | <200 | <50 |
-| Session prompts (big task) | >800 | 500-800 | 100-300 | <100 |
+| Session prompts (small task) | >5000 | 2000-5000 | <2000 | <500 |
+| Session prompts (big task) | >15000 | 5000-15000 | 1000-5000 | <1000 |
 | Post-task learning | None | Sometimes | Always | Always + refine |
 | MEMORY.md updated | Never | Sometimes | Every session | After every milestone |
 
@@ -190,3 +190,15 @@ Next task → smarter
 1. **Terminal/HUD directory path** — was planned in sessions 3/4 but not confirmed as created
    - User wanted: side terminal HUD with checklist, Opus Max orchestrator, self-improving agents
    - Need: the actual directory path where this was built (or confirmation to rebuild)
+
+<!-- minimax-loop:dfa89efab069dcbd49ecf607619fa8ba3ea45c9c -->
+## Session: 2026-04-13 17:14 — Auto loop: MiniMax-routed task
+
+### What worked
+- Opus kept the execution path on MiniMax using: minimax-delegation +2.
+
+### What failed
+- Claude Code hooks do not expose raw MiniMax worker request totals, so tracked requests are a conservative lower bound.
+
+### Actionable improvement
+- Keep worker dispatch pinned to `MiniMax-M2.7` and prefer internal MiniMax skills before any plugin fallback.

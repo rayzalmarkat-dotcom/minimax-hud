@@ -1,14 +1,14 @@
 {
-  "last_updated": "2026-04-13T00:00:00Z",
+  "last_updated": "2026-04-13T16:14:58.083482+00:00",
   "agents": [
     {
       "agent_id": "code-fix-agent",
       "display_name": "Code Fix Agent",
       "role": "Fix all issues in one file",
       "model_type": "Minimax",
-      "lifecycle_state": "core",
-      "sessions": 0,
-      "calls": 0,
+      "lifecycle_state": "spawned",
+      "sessions": 1,
+      "calls": 1,
       "token_usage": 0
     },
     {
@@ -16,30 +16,32 @@
       "display_name": "Code Review Agent",
       "role": "Rubric-scored code review (CRITICAL to LOW)",
       "model_type": "Minimax",
-      "lifecycle_state": "core",
-      "sessions": 0,
-      "calls": 0,
+      "lifecycle_state": "spawned",
+      "sessions": 1,
+      "calls": 1,
       "token_usage": 0
     },
     {
       "agent_id": "learning-agent",
-      "display_name": "Learning Agent",
+      "display_name": "learning-agent",
       "role": "Session retrospectives to _learnings.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 0,
-      "calls": 0,
-      "token_usage": 0
+      "sessions": 1,
+      "calls": 1,
+      "token_usage": 0,
+      "last_used": "2026-04-13"
     },
     {
       "agent_id": "token-budget-agent",
-      "display_name": "Token Budget Agent",
+      "display_name": "token-budget-agent",
       "role": "Budget tracking to _token_log.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 0,
-      "calls": 0,
-      "token_usage": 0
+      "sessions": 1,
+      "calls": 1,
+      "token_usage": 0,
+      "last_used": "2026-04-13"
     },
     {
       "agent_id": "git-commit-agent",
@@ -53,21 +55,30 @@
     },
     {
       "agent_id": "agent-stockpile-manager",
-      "display_name": "Agent Stockpile Manager",
+      "display_name": "agent-stockpile-manager",
       "role": "Benchmark and optimize stockpile to _stockpile.md",
       "model_type": "Minimax",
       "lifecycle_state": "core",
-      "sessions": 0,
-      "calls": 0,
-      "token_usage": 0
+      "sessions": 1,
+      "calls": 1,
+      "token_usage": 0,
+      "last_used": "2026-04-13"
+    },
+    {
+      "agent_id": "state-producer-agent",
+      "display_name": "state-producer-agent",
+      "lifecycle_state": "core",
+      "calls": 1,
+      "sessions": 1,
+      "last_used": "2026-04-13"
     }
   ],
   "global_metrics": {
-    "agents_created_today": 0,
+    "agents_created_today": 1,
     "agents_retired_today": 0,
-    "active_spawned_agents": 0,
+    "active_spawned_agents": 2,
     "spawn_success_rate": 1.0,
-    "redundancy_rate": 0.0,
+    "redundancy_rate": 0.2857142857142857,
     "low_value_agent_rate": 0.0
   }
 }

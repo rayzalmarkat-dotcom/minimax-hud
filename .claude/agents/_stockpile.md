@@ -2,7 +2,7 @@
 
 Single source of truth for all specialist MiniMax agents.
 Updated: 2026-04-13
-Managed by: agent-stockpile-manager
+Managed by: agent-stockpile-manager + minimax-post-task-loop
 
 ## Last Benchmark Session: 2026-04-12 (big code review)
 
@@ -12,11 +12,11 @@ Managed by: agent-stockpile-manager
 |-------|------|---------|-----------|-------------|---------------|
 | code-fix-agent | code-fix-agent.md | Fix issues in files | 2026-04-12 | 1 | medium |
 | code-review-agent | code-review-agent.md | Review code, rubric-scored | 2026-04-12 | 1 | medium |
-| learning-agent | learning-agent.md | Extract learnings from sessions | 2026-04-12 | 1 | medium |
-| token-budget-agent | token-budget-agent.md | Track token burn rate | 2026-04-12 | 1 | medium |
+| learning-agent | learning-agent.md | Extract learnings from sessions | 2026-04-13 | 2 | medium |
+| token-budget-agent | token-budget-agent.md | Track token burn rate | 2026-04-13 | 2 | medium |
 | git-commit-agent | git-commit-agent.md | Write conventional commits | 2026-04-12 | 1 | medium |
-| agent-stockpile-manager | agent-stockpile-manager.md | Auto-manage the stockpile | 2026-04-12 | 1 | medium |
-| state-producer-agent | state-producer-agent.md | Emit events + state updates after tasks | 2026-04-13 | 0 | new |
+| agent-stockpile-manager | agent-stockpile-manager.md | Auto-manage the stockpile | 2026-04-13 | 2 | medium |
+| state-producer-agent | state-producer-agent.md | Emit events + state updates after tasks | 2026-04-13 | 1 | new |
 
 ## Candidate Agents
 
@@ -35,6 +35,7 @@ None yet.
 2. Never dispatch a Candidate agent without noting it in the workflow
 3. Retired agents stay retired unless quality improves
 4. Max 10 active agents — retire before adding new ones
+5. The Stop-hook post-task loop updates Last Used / Sessions Used for lifecycle agents after MiniMax-routed work
 
 ## Known Gaps (from session analysis)
 

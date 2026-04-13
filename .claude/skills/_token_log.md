@@ -1,10 +1,10 @@
-# Token Usage Log
+# MiniMax Request and Efficiency Log
 
-**MiniMax M2.7 Meters:** Actual limit is 800 REQUESTS / 5 hours (10x Starter plan).
-This log tracks estimated tokens for internal efficiency analysis — NOT the budget.
-MiniMax throughput: ~50 TPS normal, ~100 TPS off-peak.
+**Canonical budget unit:** 15,000 MiniMax model requests / 5 hours.
+Tracked requests are the budget metric used by routing and HUD state.
+Estimated efficiency tokens remain secondary diagnostics for historical/manual analysis only.
 
-Target: log every session for efficiency tracking, not budget enforcement.
+Target: log every routed session for request tracking, and optionally keep efficiency token estimates for deeper analysis.
 
 <!-- Sessions logged below -->
 
@@ -66,3 +66,13 @@ Target: log every session for efficiency tracking, not budget enforcement.
 | 2026-04-13 | 1 (recovery) | ~55k | Minor |
 
 **Token efficiency target for next session: <200k** (pre-read-once + 2-5 agents max)
+
+<!-- minimax-loop:dfa89efab069dcbd49ecf607619fa8ba3ea45c9c -->
+## Session: 2026-04-13 17:14 — Auto MiniMax loop
+
+Task: MiniMax-routed task
+Tracked requests: 2
+Workflow activations: minimax-delegation +2
+Files touched: none observed
+Tools observed: none observed
+Efficiency tokens: unavailable from hook
